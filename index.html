@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receipt & Coupon Price Tracker</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💰 Receipt & Coupon Price Tracker</h1>
+            <p class="subtitle">Track your purchases and find price adjustment opportunities</p>
+        </header>
+
+        <nav class="tabs">
+            <button class="tab-button active" data-tab="upload-receipt">📸 Upload Receipt</button>
+            <button class="tab-button" data-tab="upload-coupon">🎫 Upload Coupon</button>
+            <button class="tab-button" data-tab="purchases">📋 My Purchases</button>
+            <button class="tab-button" data-tab="comparisons">💵 Price Comparisons</button>
+            <button class="tab-button" data-tab="settings">⚙️ Settings</button>
+        </nav>
+
+        <!-- Upload Receipt Tab -->
+        <div id="upload-receipt" class="tab-content active">
+            <h2>Upload Receipt</h2>
+
+            <div class="upload-section">
+                <div class="file-upload-area" id="receipt-upload-area">
+                    <input type="file" id="receipt-file-input" accept="image/*" style="display: none;">
+                    <div class="upload-prompt">
+                        <span class="upload-icon">📷</span>
+                        <p>Drag & drop receipt image here</p>
+                        <p class="or-text">or</p>
+                        <button class="btn btn-primary" id="receipt-browse-btn">Browse Files</button>
+                        <button class="btn btn-secondary" id="receipt-camera-btn">Take Photo</button>
+                    </div>
+                </div>
+
+                <div id="receipt-preview-section" class="preview-section" style="display: none;">
+                    <h3>Receipt Preview</h3>
+                    <img id="receipt-preview-image" alt="Receipt preview" />
+
+                    <div id="receipt-ocr-progress" class="progress-section" style="display: none;">
+                        <p>Processing receipt...</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="receipt-progress-fill"></div>
+                        </div>
+                        <p class="progress-text" id="receipt-progress-text">0%</p>
+                    </div>
+
+                    <div id="receipt-parsed-section" style="display: none;">
+                        <h3>Parsed Items (edit if needed)</h3>
+                        <div class="form-group">
+                            <label for="receipt-purchase-date">Purchase Date:</label>
+                            <input type="date" id="receipt-purchase-date" class="form-control">
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="items-table">
+                                <thead>
+                                    <tr>
+                                        <th>Item Number</th>
+                                        <th>Description</th>
+                                        <th>Price</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="receipt-items-tbody">
+                                    <!-- Parsed items will be inserted here -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <button class="btn btn-secondary" id="receipt-add-item-btn">+ Add Item</button>
+
+                        <div class="totals-section">
+                            <div class="total-row">
+                                <span>Subtotal:</span>
+                                <span id="receipt-subtotal">$0.00</span>
+                            </div>
+                            <div class="total-row">
+                                <span>Tax:</span>
+                                <span id="receipt-tax">$0.00</span>
+                            </div>
+                            <div class="total-row total">
+                                <span>Total:</span>
+                                <span id="receipt-total">$0.00</span>
+                            </div>
+                        </div>
+
+                        <div class="action-buttons">
+                            <button class="btn btn-success" id="receipt-save-btn">Save Receipt</button>
+                            <button class="btn btn-cancel" id="receipt-cancel-btn">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Coupon Tab -->
+        <div id="upload-coupon" class="tab-content">
+            <h2>Upload Coupon</h2>
+
+            <div class="upload-section">
+                <div class="file-upload-area" id="coupon-upload-area">
+                    <input type="file" id="coupon-file-input" accept="image/*" style="display: none;">
+                    <div class="upload-prompt">
+                        <span class="upload-icon">🎫</span>
+                        <p>Drag & drop coupon image here</p>
+                        <p class="or-text">or</p>
+                        <button class="btn btn-primary" id="coupon-browse-btn">Browse Files</button>
+                        <button class="btn btn-secondary" id="coupon-camera-btn">Take Photo</button>
+                    </div>
+                </div>
+
+                <div id="coupon-preview-section" class="preview-section" style="display: none;">
+                    <h3>Coupon Preview</h3>
+                    <img id="coupon-preview-image" alt="Coupon preview" />
+
+                    <div id="coupon-ocr-progress" class="progress-section" style="display: none;">
+                        <p>Processing coupon...</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="coupon-progress-fill"></div>
+                        </div>
+                        <p class="progress-text" id="coupon-progress-text">0%</p>
+                    </div>
+
+                    <div id="coupon-parsed-section" style="display: none;">
+                        <h3>Coupon Details (edit if needed)</h3>
+
+                        <div class="alert" style="background: #d4edda; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #28a745;">
+                            <strong>💡 Tip:</strong> For discount coupons (e.g., "$10 OFF"), you can:
+                            <br>• <strong>Leave price at $0</strong> - System will flag items as potential adjustments
+                            <br>• <strong>OR enter the final sale price</strong> if you know it (e.g., $20 for "$30 - $10 OFF")
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="coupon-valid-from">Valid From:</label>
+                                <input type="date" id="coupon-valid-from" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="coupon-valid-until">Valid Until:</label>
+                                <input type="date" id="coupon-valid-until" class="form-control">
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="items-table">
+                                <thead>
+                                    <tr>
+                                        <th>Item Number</th>
+                                        <th>Description</th>
+                                        <th>Final Sale Price ($)</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="coupon-items-tbody">
+                                    <!-- Parsed items will be inserted here -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <button class="btn btn-secondary" id="coupon-add-item-btn">+ Add Item</button>
+
+                        <div class="action-buttons">
+                            <button class="btn btn-success" id="coupon-save-btn">Save Coupon</button>
+                            <button class="btn btn-cancel" id="coupon-cancel-btn">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- My Purchases Tab -->
+        <div id="purchases" class="tab-content">
+            <h2>My Purchases</h2>
+
+            <div class="filters-section">
+                <div class="filter-group">
+                    <label>Show:</label>
+                    <select id="purchase-type" class="form-control">
+                        <option value="receipts">Receipts</option>
+                        <option value="coupons">Coupons</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Filter by date:</label>
+                    <select id="purchase-filter" class="form-control">
+                        <option value="30">Last 30 Days</option>
+                        <option value="7">Last 7 Days</option>
+                        <option value="90">Last 90 Days</option>
+                        <option value="all">All Time</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Sort by:</label>
+                    <select id="purchase-sort" class="form-control">
+                        <option value="date-desc">Date (Newest First)</option>
+                        <option value="date-asc">Date (Oldest First)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="purchases-list" class="card-list">
+                <!-- Receipt/Coupon cards will be inserted here -->
+            </div>
+
+            <div id="no-purchases" class="empty-state" style="display: none;">
+                <span class="empty-icon">📭</span>
+                <p id="no-purchases-message">No receipts found</p>
+                <p class="empty-subtext">Upload your first receipt to get started!</p>
+            </div>
+        </div>
+
+        <!-- Price Comparisons Tab -->
+        <div id="comparisons" class="tab-content">
+            <h2>Price Adjustment Opportunities</h2>
+
+            <div id="comparison-summary" class="summary-card" style="display: none;">
+                <div class="summary-total">
+                    <span class="summary-label">Total Potential Adjustment:</span>
+                    <span class="summary-amount" id="total-adjustment">$0.00</span>
+                </div>
+                <p class="summary-count">(<span id="eligible-count">0</span> items eligible)</p>
+            </div>
+
+            <div id="comparisons-list" class="card-list">
+                <!-- Comparison cards will be inserted here -->
+            </div>
+
+            <div id="no-comparisons" class="empty-state">
+                <span class="empty-icon">🔍</span>
+                <p>No price adjustments found</p>
+                <p class="empty-subtext">To find savings:</p>
+                <p class="empty-subtext">1. Upload receipts (📸 tab)</p>
+                <p class="empty-subtext">2. Upload coupons with matching item numbers (🎫 tab)</p>
+                <p class="empty-subtext">3. Come back here to see potential adjustments!</p>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="settings" class="tab-content">
+            <h2>Settings</h2>
+
+            <div class="settings-section">
+                <div class="setting-group">
+                    <label for="adjustment-window">Price Adjustment Window (days):</label>
+                    <input type="number" id="adjustment-window" class="form-control" value="30" min="1" max="365">
+                    <p class="help-text">Number of days after purchase to check for price adjustments</p>
+                </div>
+
+                <div class="setting-group">
+                    <label for="default-store">Default Store Name (optional):</label>
+                    <input type="text" id="default-store" class="form-control" placeholder="e.g., Target">
+                </div>
+
+                <button class="btn btn-primary" id="save-settings-btn">Save Settings</button>
+            </div>
+
+            <hr>
+
+            <div class="settings-section">
+                <h3>Data Management</h3>
+
+                <div class="setting-group">
+                    <button class="btn btn-secondary" id="export-data-btn">Export All Data (JSON)</button>
+                    <p class="help-text">Download all your receipts and coupons as a backup</p>
+                </div>
+
+                <div class="setting-group">
+                    <button class="btn btn-secondary" id="import-data-btn">Import Data</button>
+                    <input type="file" id="import-file-input" accept=".json" style="display: none;">
+                    <p class="help-text">Restore data from a previous backup</p>
+                </div>
+
+                <div class="setting-group">
+                    <button class="btn btn-danger" id="clear-data-btn">Clear All Data</button>
+                    <p class="help-text">Warning: This will delete all receipts, coupons, and settings</p>
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="settings-section">
+                <h3>Statistics</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-receipts">0</div>
+                        <div class="stat-label">Receipts</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-coupons">0</div>
+                        <div class="stat-label">Coupons</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-items">0</div>
+                        <div class="stat-label">Items Tracked</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-savings">$0.00</div>
+                        <div class="stat-label">Potential Savings</div>
+                    </div>
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="settings-section">
+                <h3>Debug Tools</h3>
+                <button class="btn btn-secondary" id="debug-data-btn">Show Database Contents (Console)</button>
+                <p class="help-text">Opens browser console with all receipts, coupons, and comparison logic details</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for viewing receipt/coupon details -->
+    <div id="modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <div id="modal-body">
+                <!-- Dynamic content will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div id="toast-container"></div>
+
+    <!-- Load Tesseract.js from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+    <!-- Load application scripts -->
+    <script src="js/database.js"></script>
+    <script src="js/ocr.js"></script>
+    <script src="js/receipt.js"></script>
+    <script src="js/coupon.js"></script>
+    <script src="js/comparison.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
