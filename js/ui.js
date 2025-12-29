@@ -53,7 +53,7 @@ async function renderReceiptList() {
     emptyEl.style.display = 'none';
     listEl.innerHTML = receipts.map(r => {
         const formatted = formatReceipt(r);
-        return '<div class="card"><div class="card-header"><span class="card-title">' + formatted.purchaseDateFormatted + '</span><span class="card-date">' + formatted.totalFormatted + '</span></div><div class="card-body"><div class="card-info"><span>Items:</span><span>' + (r.items ? r.items.length : 0) + '</span></div></div><div class="card-actions"><button class="btn btn-secondary" onclick="viewReceiptDetails(\'' + r.id + '\')">View</button><button class="btn btn-danger" onclick="deleteReceiptConfirm(\'' + r.id + '\')">Delete</button></div></div>';
+        return '<div class="card"><div class="card-header"><span class="card-title">' + formatted.purchaseDateFormatted + '</span><span class="card-date">' + formatted.totalFormatted + '</span></div><div class="card-body"><div class="card-info"><span>Items:</span><span>' + (r.items ? r.items.length : 0) + '</span></div></div><div class="card-actions"><button class="btn btn-secondary" onclick="viewReceiptDetails(\'' + r.id + '\')">View</button><button class="btn btn-secondary" onclick="editReceiptDate(\'' + r.id + '\')">Edit Date</button><button class="btn btn-danger" onclick="deleteReceiptConfirm(\'' + r.id + '\')">Delete</button></div></div>';
     }).join('');
 }
 
@@ -102,6 +102,42 @@ async function deleteReceiptConfirm(receiptId) {
         renderReceiptList();
         renderComparisons();
     }
+}
+
+async function editReceiptDate(receiptId) {
+    const receipt = await getReceiptById(receiptId);
+    if (!receipt) return;
+
+    const content = '<h2>Edit Receipt Date</h2>' +
+        '<div class="form-group">' +
+        '<label for="edit-receipt-date">Purchase Date:</label>' +
+        '<input type="date" id="edit-receipt-date" class="form-control" value="' + receipt.purchaseDate + '">' +
+        '</div>' +
+        '<div class="action-buttons" style="margin-top: 20px;">' +
+        '<button class="btn btn-success" onclick="saveReceiptDate(\'' + receiptId + '\')">Save</button>' +
+        '<button class="btn btn-cancel" onclick="hideModal()">Cancel</button>' +
+        '</div>';
+
+    showModal(content);
+}
+
+async function saveReceiptDate(receiptId) {
+    const newDate = document.getElementById('edit-receipt-date').value;
+    if (!newDate) {
+        showToast('Please enter a valid date', 'error');
+        return;
+    }
+
+    const receipt = await getReceiptById(receiptId);
+    if (!receipt) return;
+
+    receipt.purchaseDate = newDate;
+    await saveReceipt(receipt);
+
+    hideModal();
+    showToast('Receipt date updated', 'success');
+    renderReceiptList();
+    renderComparisons();
 }
 
 async function viewCouponDetails(couponId) {
