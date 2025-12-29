@@ -239,7 +239,7 @@ async function recalculateComparisons() {
 
     try {
         // Force re-fetch coupons from GitHub (bypassing any cache)
-        await renderComparisons();
+        await renderComparisons(true);
 
         showToast('Price comparisons updated!', 'success');
         console.log('✅ Recalculation complete');
@@ -249,7 +249,7 @@ async function recalculateComparisons() {
     }
 }
 
-async function renderComparisons() {
+async function renderComparisons(bustCache = false) {
     console.log('🔄 renderComparisons called - View Coupon button should appear');
     const adjustmentWindow = await getSetting('adjustmentWindow', 30);
     const showExpired = await getSetting('showExpiredAdjustments', false);
@@ -264,7 +264,7 @@ async function renderComparisons() {
     console.log('📝 Found receipts:', receipts.length);
 
     // Load coupons from GitHub monthly files instead of IndexedDB
-    const coupons = await loadMonthlyCouponsToMemory();
+    const coupons = await loadMonthlyCouponsToMemory(bustCache);
 
     let adjustments = calculatePriceAdjustments(receipts, coupons, adjustmentWindow);
 
