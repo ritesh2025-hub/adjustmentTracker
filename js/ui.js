@@ -99,8 +99,8 @@ async function deleteReceiptConfirm(receiptId) {
     if (confirm('Delete this receipt?')) {
         await deleteReceipt(receiptId);
         showToast('Receipt deleted', 'success');
-        renderReceiptList();
-        renderComparisons();
+        await renderReceiptList();
+        await renderComparisons();
     }
 }
 
@@ -136,8 +136,8 @@ async function saveReceiptDate(receiptId) {
 
     hideModal();
     showToast('Receipt date updated', 'success');
-    renderReceiptList();
-    renderComparisons();
+    await renderReceiptList();
+    await renderComparisons();
 }
 
 async function viewCouponDetails(couponId) {
@@ -154,8 +154,8 @@ async function deleteCouponConfirm(couponId) {
     if (confirm('Delete this coupon?')) {
         await deleteCoupon(couponId);
         showToast('Coupon deleted', 'success');
-        renderCouponList();
-        renderComparisons();
+        await renderCouponList();
+        await renderComparisons();
     }
 }
 
@@ -356,9 +356,9 @@ async function importDataFromFile(file) {
         const data = JSON.parse(text);
         await importData(data);
         showToast('Data imported!', 'success');
-        renderReceiptList();
-        renderComparisons();
-        renderStats();
+        await renderReceiptList();
+        await renderComparisons();
+        await renderStats();
     } catch (error) {
         showToast('Import failed: ' + error.message, 'error');
     }
@@ -368,9 +368,9 @@ async function clearAllDataConfirm() {
     if (confirm('Delete ALL data? This cannot be undone!') && confirm('Really delete everything?')) {
         await clearAllData();
         showToast('All data cleared', 'success');
-        renderReceiptList();
-        renderComparisons();
-        renderStats();
+        await renderReceiptList();
+        await renderComparisons();
+        await renderStats();
     }
 }
 
@@ -380,7 +380,7 @@ async function saveSettings() {
     await setSetting('adjustmentWindow', adjustmentWindow);
     await setSetting('defaultStore', defaultStore);
     showToast('Settings saved!', 'success');
-    renderComparisons();
+    await renderComparisons();
 }
 
 async function loadSettings() {
