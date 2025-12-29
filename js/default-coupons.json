@@ -1,0 +1,44 @@
+[
+  {
+    "validFrom": "2025-01-01",
+    "validUntil": "2025-02-28",
+    "items": [
+      {
+        "itemNumber": "1587186",
+        "description": "Kirkland Organic Extra Virgin Olive Oil",
+        "salePrice": 0,
+        "discount": 10.00
+      },
+      {
+        "itemNumber": "1234567",
+        "description": "Kirkland Paper Towels 12-Pack",
+        "salePrice": 15.99,
+        "discount": 0
+      },
+      {
+        "itemNumber": "7654321",
+        "description": "Organic Eggs 24-Count",
+        "salePrice": 0,
+        "discount": 3.50
+      }
+    ]
+  },
+  {
+    "validFrom": "2025-01-15",
+    "validUntil": "2025-03-15",
+    "items": [
+      {
+        "itemNumber": "9876543",
+        "description": "Rotisserie Chicken",
+        "salePrice": 4.99,
+        "discount": 0
+      },
+      {
+        "itemNumber": "5555555",
+        "description": "Kirkland Vitamin D3",
+        "salePrice": 0,
+        "discount": 7.00
+      }
+    ]
+  }
+]

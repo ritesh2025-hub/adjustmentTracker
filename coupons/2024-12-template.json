@@ -1,0 +1,28 @@
+{
+  "month": "2024-12",
+  "startDate": "2024-11-17",
+  "endDate": "2024-12-21",
+  "coupons": [
+    {
+      "id": "coupon_2024_12_001",
+      "validFrom": "2024-11-17",
+      "validUntil": "2024-12-21",
+      "items": [
+        {
+          "itemNumber": "EXAMPLE123",
+          "description": "Example Product Name",
+          "salePrice": 19.99,
+          "discount": 5.00
+        }
+      ]
+    }
+  ],
+  "instructions": [
+    "Replace EXAMPLE123 with actual Costco item numbers",
+    "Update descriptions with actual product names",
+    "For '$X OFF' coupons: set discount to X, salePrice to 0 (or final price if known)",
+    "For 'Now $X' coupons: set salePrice to X, discount to 0",
+    "Add more items to the items array as needed",
+    "Remove this instructions array before uploading to GitHub"
+  ]
+}

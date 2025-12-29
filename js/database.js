@@ -59,6 +59,30 @@ async function initDatabase() {
 }
 
 /**
+ * Load monthly coupons from GitHub (replaces local coupon storage)
+ * This function loads coupons from monthly JSON files instead of IndexedDB
+ */
+async function loadMonthlyCouponsToMemory() {
+    try {
+        console.log('Loading monthly coupons from GitHub...');
+
+        // Use the coupon-manager.js function to load from monthly files
+        const monthlyCoupons = await loadMonthlyCoupons();
+
+        if (monthlyCoupons && monthlyCoupons.length > 0) {
+            console.log(`✅ Loaded ${monthlyCoupons.length} coupons from monthly files`);
+            return monthlyCoupons;
+        } else {
+            console.warn('No monthly coupons found, app will work without coupons');
+            return [];
+        }
+    } catch (error) {
+        console.error('Could not load monthly coupons:', error);
+        return [];
+    }
+}
+
+/**
  * Get a transaction for the specified store
  */
 function getTransaction(storeName, mode = 'readonly') {

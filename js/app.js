@@ -2,17 +2,30 @@
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Receipt Tracker App starting...');
-    
+
+    // Check if admin mode (URL contains ?admin=true or #admin)
+    const isAdmin = window.location.search.includes('admin=true') || window.location.hash.includes('admin');
+    if (isAdmin) {
+        console.log('🔑 Admin mode enabled');
+        // Show admin-only elements
+        document.querySelectorAll('.admin-only').forEach(el => {
+            el.style.display = '';
+        });
+    }
+
     // Initialize database
     try {
         await initDatabase();
         console.log('Database initialized');
+
+        // Note: Coupons are now loaded dynamically from monthly JSON files
+        // when rendering comparisons, not stored in IndexedDB
     } catch (error) {
         console.error('Failed to initialize database:', error);
         showToast('Failed to initialize app', 'error');
         return;
     }
-    
+
     // Initialize OCR
     try {
         await initOCR();
@@ -37,10 +50,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Receipt upload handlers
     setupReceiptHandlers();
-    
-    // Coupon upload handlers
-    setupCouponHandlers();
-    
+
+    // Coupon upload handlers (admin only)
+    if (isAdmin) {
+        setupCouponHandlers();
+    }
+
     // Purchases tab handlers
     document.getElementById('purchase-type').addEventListener('change', renderReceiptList);
     document.getElementById('purchase-filter').addEventListener('change', renderReceiptList);
@@ -253,29 +268,113 @@ function setupCouponHandlers() {
     const fileInput = document.getElementById('coupon-file-input');
     const browseBtn = document.getElementById('coupon-browse-btn');
     const cameraBtn = document.getElementById('coupon-camera-btn');
-    const uploadArea = document.getElementById('coupon-upload-area');
     const saveBtn = document.getElementById('coupon-save-btn');
     const cancelBtn = document.getElementById('coupon-cancel-btn');
     const addItemBtn = document.getElementById('coupon-add-item-btn');
-    
+
+    if (!fileInput || !browseBtn || !cameraBtn) return; // Elements not present
+
     browseBtn.addEventListener('click', () => fileInput.click());
     cameraBtn.addEventListener('click', () => {
         fileInput.setAttribute('capture', 'environment');
         fileInput.click();
     });
-    
+
     fileInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
-            processCouponImage(e.target.files[0]);
+            if (e.target.files.length > 1) {
+                // Batch processing multiple files
+                processCouponBatch(e.target.files);
+            } else {
+                // Single file processing
+                processCouponImage(e.target.files[0]);
+            }
         }
     });
-    
+
     saveBtn.addEventListener('click', saveCouponData);
     cancelBtn.addEventListener('click', resetCouponForm);
     addItemBtn.addEventListener('click', addCouponItemRow);
 }
 
 let currentCouponData = null;
+let batchCouponItems = []; // Store all items from batch processing
+
+async function processCouponBatch(files) {
+    try {
+        console.log(`🔄 Starting batch processing of ${files.length} images...`);
+
+        // Show batch processing UI
+        document.getElementById('coupon-batch-processing').style.display = 'block';
+        document.getElementById('coupon-parsed-section').style.display = 'none';
+        document.getElementById('coupon-preview-section').style.display = 'none';
+
+        const totalFiles = files.length;
+        document.getElementById('total-batch-number').textContent = totalFiles;
+
+        batchCouponItems = []; // Reset batch items
+        const batchResults = document.getElementById('batch-results');
+        batchResults.innerHTML = '';
+
+        // Process each file sequentially
+        for (let i = 0; i < totalFiles; i++) {
+            const file = files[i];
+            const fileNumber = i + 1;
+
+            document.getElementById('current-batch-number').textContent = fileNumber;
+            const progress = Math.round((fileNumber / totalFiles) * 100);
+            document.getElementById('batch-progress-fill').style.width = progress + '%';
+            document.getElementById('batch-progress-text').textContent = progress + '%';
+
+            batchResults.innerHTML += `<div>📄 Processing ${file.name}...</div>`;
+
+            try {
+                // Process OCR
+                const result = await processImage(file, () => {});
+
+                // Parse coupon
+                const couponData = parseCoupon(result.text);
+
+                if (couponData.items && couponData.items.length > 0) {
+                    // Add all items to batch
+                    batchCouponItems.push(...couponData.items);
+                    batchResults.innerHTML += `<div style="color: green;">✅ ${file.name}: Found ${couponData.items.length} items</div>`;
+                } else {
+                    batchResults.innerHTML += `<div style="color: orange;">⚠️ ${file.name}: No items found</div>`;
+                }
+            } catch (error) {
+                console.error(`Error processing ${file.name}:`, error);
+                batchResults.innerHTML += `<div style="color: red;">❌ ${file.name}: OCR failed</div>`;
+            }
+
+            // Scroll to bottom of results
+            batchResults.scrollTop = batchResults.scrollHeight;
+        }
+
+        console.log(`✅ Batch processing complete! Found ${batchCouponItems.length} total items`);
+
+        // Hide batch processing, show review screen
+        document.getElementById('coupon-batch-processing').style.display = 'none';
+        document.getElementById('coupon-parsed-section').style.display = 'block';
+        document.getElementById('review-header').textContent = `Review & Edit All Coupons (${batchCouponItems.length} items found)`;
+        document.getElementById('total-items-count').textContent = batchCouponItems.length;
+
+        // Set default dates (can be edited)
+        document.getElementById('coupon-valid-from').value = new Date().toISOString().split('T')[0];
+        const futureDate = new Date();
+        futureDate.setMonth(futureDate.getMonth() + 1);
+        document.getElementById('coupon-valid-until').value = futureDate.toISOString().split('T')[0];
+
+        // Render all items in review table
+        renderBatchCouponItems(batchCouponItems);
+
+        showToast(`Batch processing complete! ${batchCouponItems.length} items found`, 'success');
+    } catch (error) {
+        console.error('Batch processing error:', error);
+        showToast('Batch processing failed: ' + error.message, 'error');
+        document.getElementById('coupon-batch-processing').style.display = 'none';
+    }
+}
 
 async function processCouponImage(file) {
     try {
@@ -286,21 +385,21 @@ async function processCouponImage(file) {
             document.getElementById('coupon-ocr-progress').style.display = 'block';
         };
         reader.readAsDataURL(file);
-        
+
         const result = await processImage(file, (progress) => {
             document.getElementById('coupon-progress-fill').style.width = progress + '%';
             document.getElementById('coupon-progress-text').textContent = progress + '%';
         });
-        
+
         currentCouponData = parseCoupon(result.text);
-        
+
         document.getElementById('coupon-valid-from').value = currentCouponData.validFrom;
         document.getElementById('coupon-valid-until').value = currentCouponData.validUntil;
         renderCouponItems(currentCouponData.items);
-        
+
         document.getElementById('coupon-ocr-progress').style.display = 'none';
         document.getElementById('coupon-parsed-section').style.display = 'block';
-        
+
         showToast('Coupon processed successfully!', 'success');
     } catch (error) {
         console.error('Failed to process coupon:', error);
@@ -310,10 +409,29 @@ async function processCouponImage(file) {
     }
 }
 
+function renderBatchCouponItems(items) {
+    const tbody = document.getElementById('coupon-items-tbody');
+    tbody.innerHTML = items.map((item, index) => {
+        const priceValue = (item.salePrice && item.salePrice > 0) ? item.salePrice : 0;
+        const discountValue = (item.discount && item.discount > 0) ? item.discount : 0;
+
+        return `<tr>
+            <td><input type="text" value="${item.itemNumber || ''}" data-index="${index}" data-field="itemNumber" style="width: 100%;"></td>
+            <td><input type="text" value="${item.description || ''}" data-index="${index}" data-field="description" style="width: 100%;"></td>
+            <td><input type="number" step="0.01" value="${priceValue}" data-index="${index}" data-field="salePrice" style="width: 100%;"></td>
+            <td><input type="number" step="0.01" value="${discountValue}" data-index="${index}" data-field="discount" style="width: 100%;"></td>
+            <td><button class="btn btn-danger btn-sm" onclick="removeBatchCouponItem(${index})">✕</button></td>
+        </tr>`;
+    }).join('');
+
+    tbody.querySelectorAll('input').forEach(input => {
+        input.addEventListener('change', updateBatchCouponItemData);
+    });
+}
+
 function renderCouponItems(items) {
     const tbody = document.getElementById('coupon-items-tbody');
     tbody.innerHTML = items.map((item, index) => {
-        // If we have a discount but no sale price, show 0 and add warning
         const priceValue = (item.salePrice && item.salePrice > 0) ? item.salePrice : 0;
         const hasDiscount = item.discount && item.discount > 0;
         const warningStyle = hasDiscount && priceValue === 0 ? 'background: #fff3cd;' : '';
@@ -328,10 +446,21 @@ function renderCouponItems(items) {
         '<td><button class="btn btn-danger" onclick="removeCouponItem(' + index + ')">Remove</button></td></tr>';
     }).join('');
 
-    // Add event listeners for input changes
     tbody.querySelectorAll('input').forEach(input => {
         input.addEventListener('change', updateCouponItemData);
     });
+}
+
+function updateBatchCouponItemData(e) {
+    const index = parseInt(e.target.getAttribute('data-index'));
+    const field = e.target.getAttribute('data-field');
+    let value = e.target.value;
+
+    if (field === 'salePrice' || field === 'discount') {
+        value = parseFloat(value) || 0;
+    }
+
+    batchCouponItems[index][field] = value;
 }
 
 function updateCouponItemData(e) {
@@ -342,8 +471,23 @@ function updateCouponItemData(e) {
 }
 
 function addCouponItemRow() {
-    currentCouponData.items.push({ itemNumber: '', description: '', salePrice: 0 });
-    renderCouponItems(currentCouponData.items);
+    if (batchCouponItems.length > 0) {
+        // Batch mode
+        batchCouponItems.push({ itemNumber: '', description: '', salePrice: 0, discount: 0 });
+        renderBatchCouponItems(batchCouponItems);
+        document.getElementById('total-items-count').textContent = batchCouponItems.length;
+    } else if (currentCouponData) {
+        // Single mode
+        currentCouponData.items.push({ itemNumber: '', description: '', salePrice: 0 });
+        renderCouponItems(currentCouponData.items);
+    }
+}
+
+function removeBatchCouponItem(index) {
+    batchCouponItems.splice(index, 1);
+    renderBatchCouponItems(batchCouponItems);
+    document.getElementById('total-items-count').textContent = batchCouponItems.length;
+    document.getElementById('review-header').textContent = `Review & Edit All Coupons (${batchCouponItems.length} items found)`;
 }
 
 function removeCouponItem(index) {
@@ -352,44 +496,103 @@ function removeCouponItem(index) {
 }
 
 async function saveCouponData() {
-    currentCouponData.validFrom = document.getElementById('coupon-valid-from').value;
-    currentCouponData.validUntil = document.getElementById('coupon-valid-until').value;
+    const validFrom = document.getElementById('coupon-valid-from').value;
+    const validUntil = document.getElementById('coupon-valid-until').value;
 
-    // Update items from form inputs (make sure we get latest values)
-    const tbody = document.getElementById('coupon-items-tbody');
-    const rows = tbody.querySelectorAll('tr');
-    rows.forEach((row, index) => {
-        const inputs = row.querySelectorAll('input');
-        if (inputs.length >= 3) {
-            currentCouponData.items[index].itemNumber = inputs[0].value;
-            currentCouponData.items[index].description = inputs[1].value;
-            currentCouponData.items[index].salePrice = parseFloat(inputs[2].value) || 0;
+    // Check if we're in batch mode
+    if (batchCouponItems.length > 0) {
+        // Batch mode: Get latest values from table
+        const tbody = document.getElementById('coupon-items-tbody');
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach((row, index) => {
+            const inputs = row.querySelectorAll('input');
+            if (inputs.length >= 4 && batchCouponItems[index]) {
+                batchCouponItems[index].itemNumber = inputs[0].value;
+                batchCouponItems[index].description = inputs[1].value;
+                batchCouponItems[index].salePrice = parseFloat(inputs[2].value) || 0;
+                batchCouponItems[index].discount = parseFloat(inputs[3].value) || 0;
+            }
+        });
+
+        // Create coupon object with all batch items
+        const batchCouponData = {
+            validFrom: validFrom,
+            validUntil: validUntil,
+            items: batchCouponItems.filter(item => item.itemNumber && item.itemNumber.trim() !== '')
+        };
+
+        console.log(`💾 Generating monthly JSON with ${batchCouponData.items.length} items from batch`);
+
+        try {
+            // Generate monthly JSON file
+            const monthlyJSON = generateMonthlyJSON(batchCouponData);
+
+            // Download the JSON file
+            downloadMonthlyJSON(monthlyJSON.fileName, monthlyJSON.data);
+
+            // Show upload instructions
+            showUploadInstructions(monthlyJSON.fileName);
+
+            console.log(`✅ Monthly JSON generated: ${monthlyJSON.fileName}`);
+            showToast(`✅ Download complete! ${batchCouponData.items.length} items in ${monthlyJSON.fileName}`, 'success');
+
+            resetCouponForm();
+        } catch (error) {
+            console.error('❌ Failed to generate monthly JSON:', error);
+            showToast('Failed to generate coupon file: ' + error.message, 'error');
         }
-    });
 
-    console.log('💾 Saving coupon with data:', JSON.stringify(currentCouponData, null, 2));
+    } else if (currentCouponData) {
+        // Single coupon mode
+        currentCouponData.validFrom = validFrom;
+        currentCouponData.validUntil = validUntil;
 
-    const validation = validateCoupon(currentCouponData);
-    if (!validation.isValid) {
-        showToast('Invalid coupon: ' + validation.errors.join(', '), 'error');
-        return;
-    }
+        const tbody = document.getElementById('coupon-items-tbody');
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach((row, index) => {
+            const inputs = row.querySelectorAll('input');
+            if (inputs.length >= 3) {
+                currentCouponData.items[index].itemNumber = inputs[0].value;
+                currentCouponData.items[index].description = inputs[1].value;
+                currentCouponData.items[index].salePrice = parseFloat(inputs[2].value) || 0;
+            }
+        });
 
-    try {
-        const saved = await saveCoupon(currentCouponData);
-        console.log('✅ Coupon saved successfully:', saved);
-        showToast('Coupon saved! View in "My Purchases" > "Coupons"', 'success');
-        resetCouponForm();
-        await renderComparisons();
-    } catch (error) {
-        console.error('❌ Failed to save coupon:', error);
-        showToast('Failed to save coupon: ' + error.message, 'error');
+        console.log('💾 Generating monthly JSON for single coupon');
+
+        const validation = validateCoupon(currentCouponData);
+        if (!validation.isValid) {
+            showToast('Invalid coupon: ' + validation.errors.join(', '), 'error');
+            return;
+        }
+
+        try {
+            // Generate monthly JSON file
+            const monthlyJSON = generateMonthlyJSON(currentCouponData);
+
+            // Download the JSON file
+            downloadMonthlyJSON(monthlyJSON.fileName, monthlyJSON.data);
+
+            // Show upload instructions
+            showUploadInstructions(monthlyJSON.fileName);
+
+            console.log(`✅ Monthly JSON generated: ${monthlyJSON.fileName}`);
+            showToast(`Download complete! Upload ${monthlyJSON.fileName} to GitHub`, 'success');
+
+            resetCouponForm();
+        } catch (error) {
+            console.error('❌ Failed to generate monthly JSON:', error);
+            showToast('Failed to generate coupon file: ' + error.message, 'error');
+        }
     }
 }
 
 function resetCouponForm() {
     currentCouponData = null;
+    batchCouponItems = [];
     document.getElementById('coupon-preview-section').style.display = 'none';
+    document.getElementById('coupon-batch-processing').style.display = 'none';
+    document.getElementById('coupon-parsed-section').style.display = 'none';
     document.getElementById('coupon-file-input').value = '';
 }
 

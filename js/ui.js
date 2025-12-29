@@ -126,7 +126,10 @@ async function deleteCouponConfirm(couponId) {
 async function renderComparisons() {
     const adjustmentWindow = await getSetting('adjustmentWindow', 30);
     const receipts = await getReceipts();
-    const coupons = await getCoupons(true);
+
+    // Load coupons from GitHub monthly files instead of IndexedDB
+    const coupons = await loadMonthlyCouponsToMemory();
+
     const adjustments = calculatePriceAdjustments(receipts, coupons, adjustmentWindow);
     
     const listEl = document.getElementById('comparisons-list');

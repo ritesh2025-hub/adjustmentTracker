@@ -15,7 +15,7 @@
 
         <nav class="tabs">
             <button class="tab-button active" data-tab="upload-receipt">📸 Upload Receipt</button>
-            <button class="tab-button" data-tab="upload-coupon">🎫 Upload Coupon</button>
+            <button class="tab-button admin-only" data-tab="upload-coupon" style="display: none;">🎫 Upload Coupon (Admin)</button>
             <button class="tab-button" data-tab="purchases">📋 My Purchases</button>
             <button class="tab-button" data-tab="comparisons">💵 Price Comparisons</button>
             <button class="tab-button" data-tab="settings">⚙️ Settings</button>
@@ -98,20 +98,34 @@
             </div>
         </div>
 
-        <!-- Upload Coupon Tab -->
-        <div id="upload-coupon" class="tab-content">
-            <h2>Upload Coupon</h2>
+        <!-- Upload Coupon Tab (Admin Only) -->
+        <div id="upload-coupon" class="tab-content admin-only" style="display: none;">
+            <h2>Upload Coupon (Admin Only)</h2>
+
+            <div class="alert" style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #2196F3;">
+                <strong>💡 New Feature:</strong> Upload multiple coupon pages at once! Select all 24 Costco coupon book pages and process them in one batch.
+            </div>
 
             <div class="upload-section">
                 <div class="file-upload-area" id="coupon-upload-area">
-                    <input type="file" id="coupon-file-input" accept="image/*" style="display: none;">
+                    <input type="file" id="coupon-file-input" accept="image/*" multiple style="display: none;">
                     <div class="upload-prompt">
                         <span class="upload-icon">🎫</span>
-                        <p>Drag & drop coupon image here</p>
+                        <p>Drag & drop coupon images here (multiple files supported)</p>
                         <p class="or-text">or</p>
-                        <button class="btn btn-primary" id="coupon-browse-btn">Browse Files</button>
+                        <button class="btn btn-primary" id="coupon-browse-btn">Browse Files (Select Multiple)</button>
                         <button class="btn btn-secondary" id="coupon-camera-btn">Take Photo</button>
                     </div>
+                </div>
+
+                <div id="coupon-batch-processing" class="preview-section" style="display: none;">
+                    <h3>Batch Processing Coupons</h3>
+                    <p id="batch-status">Processing <span id="current-batch-number">1</span> of <span id="total-batch-number">24</span> images...</p>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="batch-progress-fill"></div>
+                    </div>
+                    <p class="progress-text" id="batch-progress-text">0%</p>
+                    <div id="batch-results" style="margin-top: 20px; max-height: 200px; overflow-y: auto; font-size: 12px;"></div>
                 </div>
 
                 <div id="coupon-preview-section" class="preview-section" style="display: none;">
@@ -127,12 +141,15 @@
                     </div>
 
                     <div id="coupon-parsed-section" style="display: none;">
-                        <h3>Coupon Details (edit if needed)</h3>
+                        <h3 id="review-header">Review & Edit All Coupons</h3>
 
-                        <div class="alert" style="background: #d4edda; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #28a745;">
-                            <strong>💡 Tip:</strong> For discount coupons (e.g., "$10 OFF"), you can:
-                            <br>• <strong>Leave price at $0</strong> - System will flag items as potential adjustments
-                            <br>• <strong>OR enter the final sale price</strong> if you know it (e.g., $20 for "$30 - $10 OFF")
+                        <div class="alert" style="background: #fff9c4; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #fbc02d;">
+                            <strong>📋 Review Instructions:</strong>
+                            <br>• Check all item numbers are correct (6-7 digits)
+                            <br>• Verify descriptions match the products
+                            <br>• For "$X OFF" coupons: Leave price at $0, discount will be set
+                            <br>• For "Now $X" coupons: Enter the final sale price
+                            <br>• Remove any duplicate or incorrectly parsed items
                         </div>
 
                         <div class="form-row">
@@ -144,28 +161,33 @@
                                 <label for="coupon-valid-until">Valid Until:</label>
                                 <input type="date" id="coupon-valid-until" class="form-control">
                             </div>
+                            <div class="form-group">
+                                <label>Total Items Found:</label>
+                                <span id="total-items-count" style="font-size: 24px; font-weight: bold; color: #4CAF50;">0</span>
+                            </div>
                         </div>
 
-                        <div class="table-responsive">
+                        <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
                             <table class="items-table">
-                                <thead>
+                                <thead style="position: sticky; top: 0; background: white; z-index: 10;">
                                     <tr>
-                                        <th>Item Number</th>
-                                        <th>Description</th>
-                                        <th>Final Sale Price ($)</th>
-                                        <th>Actions</th>
+                                        <th style="width: 100px;">Item Number</th>
+                                        <th style="width: 300px;">Description</th>
+                                        <th style="width: 120px;">Sale Price ($)</th>
+                                        <th style="width: 120px;">Discount ($)</th>
+                                        <th style="width: 80px;">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="coupon-items-tbody">
-                                    <!-- Parsed items will be inserted here -->
+                                    <!-- All parsed items from all coupons will be inserted here -->
                                 </tbody>
                             </table>
                         </div>
 
-                        <button class="btn btn-secondary" id="coupon-add-item-btn">+ Add Item</button>
+                        <button class="btn btn-secondary" id="coupon-add-item-btn">+ Add Item Manually</button>
 
                         <div class="action-buttons">
-                            <button class="btn btn-success" id="coupon-save-btn">Save Coupon</button>
+                            <button class="btn btn-success btn-large" id="coupon-save-btn">✅ Generate Monthly JSON File</button>
                             <button class="btn btn-cancel" id="coupon-cancel-btn">Cancel</button>
                         </div>
                     </div>
@@ -333,6 +355,7 @@
 
     <!-- Load application scripts -->
     <script src="js/database.js"></script>
+    <script src="js/coupon-manager.js"></script>
     <script src="js/ocr.js"></script>
     <script src="js/receipt.js"></script>
     <script src="js/coupon.js"></script>

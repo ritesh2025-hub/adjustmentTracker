@@ -1,0 +1,26 @@
+{
+  "month": "2025-01",
+  "startDate": "2025-01-01",
+  "endDate": "2025-01-31",
+  "coupons": [
+    {
+      "id": "coupon_2025_01_001",
+      "validFrom": "2025-01-01",
+      "validUntil": "2025-01-31",
+      "items": [
+        {
+          "itemNumber": "1587186",
+          "description": "Kirkland Organic Extra Virgin Olive Oil",
+          "salePrice": 0,
+          "discount": 10.00
+        },
+        {
+          "itemNumber": "1234567",
+          "description": "Kirkland Paper Towels 12-Pack",
+          "salePrice": 15.99,
+          "discount": 0
+        }
+      ]
+    }
+  ]
+}
