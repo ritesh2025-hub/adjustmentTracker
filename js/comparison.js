@@ -31,6 +31,12 @@
  */
 function calculatePriceAdjustments(receipts, coupons, adjustmentWindowDays = 30) {
     const today = new Date();
+    console.log('🔄 calculatePriceAdjustments called:', {
+        today: today.toISOString().split('T')[0],
+        receiptsCount: receipts.length,
+        couponsCount: coupons.length,
+        adjustmentWindowDays: adjustmentWindowDays
+    });
     const adjustmentOpportunities = [];
 
     // Build item number index from coupons (use lowest price if multiple coupons have same item)
@@ -109,6 +115,14 @@ function calculatePriceAdjustments(receipts, coupons, adjustmentWindowDays = 30)
 
             // Check if we're still within the adjustment window (from promotion start)
             const eligible = today <= adjustmentDeadline;
+
+            console.log(`   Item #${item.itemNumber}:`, {
+                purchaseDate: receipt.purchaseDate,
+                couponStartDate: coupon.validFrom,
+                daysBeforePromotion: daysBeforePromotion,
+                adjustmentDeadline: adjustmentDeadline.toISOString().split('T')[0],
+                eligible: eligible
+            });
 
             // Case 1: Coupon has actual sale price - calculate exact adjustment
             if (couponInfo.price && item.finalPrice > couponInfo.price) {
@@ -268,6 +282,12 @@ function getDaysRemainingText(deadlineStr) {
     const today = new Date();
     const deadline = new Date(deadlineStr);
     const daysRemaining = Math.floor((deadline - today) / (1000 * 60 * 60 * 24));
+
+    console.log('📅 getDaysRemainingText:', {
+        today: today.toISOString().split('T')[0],
+        deadline: deadlineStr,
+        daysRemaining: daysRemaining
+    });
 
     if (daysRemaining < 0) {
         return 'Expired';

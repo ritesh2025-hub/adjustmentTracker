@@ -293,8 +293,10 @@ async function renderComparisons(bustCache = false) {
     document.getElementById('total-adjustment').textContent = formatCurrency(stats.totalSavings);
     document.getElementById('eligible-count').textContent = stats.eligible;
 
+    console.log('📊 Rendering adjustments to DOM:', adjustments.length);
     listEl.innerHTML = adjustments.map(adj => {
         const formatted = formatAdjustment(adj);
+        console.log(`   Card for Item #${adj.itemNumber}: ${formatted.daysRemainingText}`);
         const statusIndicator = adj.eligible ? '🟢' : '⚪';
         const cardClass = adj.eligible ? 'comparison-card' : 'comparison-card expired';
 
