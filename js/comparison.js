@@ -4,29 +4,32 @@
  * Calculate price adjustments by comparing receipts with current coupon prices
  *
  * LOGIC:
- * - Item purchased BEFORE coupon promotion starts → Check if within window
- * - Purchase must be within X days BEFORE promotion (e.g., 30 days before promo start)
- * - Adjustment deadline: X days FROM promotion start date
+ * - Item purchased BEFORE coupon promotion starts → Check if adjustment deadline falls within coupon period
+ * - Adjustment deadline: X days FROM PURCHASE date (not from promo start)
+ * - The adjustment deadline MUST fall between coupon start and end dates
  * - Item purchased DURING promotion period → No adjustment (already got discount)
  * - Item purchased AFTER promotion ends → No adjustment
- * - Item purchased TOO LONG before promotion → No adjustment (outside window)
+ * - Days remaining: Calculated from today to adjustment deadline
  *
  * EXAMPLE 1 (ELIGIBLE):
- * - Purchase: Jan 1, 2026 at $24.99
- * - Promotion: Jan 15 - Jan 31, 2026 at $18.99
- * - Days before promo: 14 days (within 30-day window)
- * - Adjustment deadline: Feb 14, 2026 (30 days from Jan 15)
- * - Result: ELIGIBLE for $6.00 adjustment until Feb 14
+ * - Purchase: Dec 15, 2025 at $24.99
+ * - Coupon period: Dec 22, 2025 - Jan 19, 2026 at $18.99
+ * - Adjustment deadline: Jan 14, 2026 (30 days from purchase)
+ * - Jan 14 IS between Dec 22 and Jan 19 ✓
+ * - Today: Dec 29, 2025
+ * - Days remaining: 16 days (Jan 14 - Dec 29)
+ * - Result: ELIGIBLE for $6.00 adjustment until Jan 14
  *
- * EXAMPLE 2 (TOO OLD):
- * - Purchase: Dec 1, 2022 at $24.99
- * - Promotion: Jan 15, 2026 at $18.99
- * - Days before promo: 1,141 days (way outside 30-day window)
- * - Result: NOT ELIGIBLE (too old)
+ * EXAMPLE 2 (DEADLINE OUTSIDE COUPON PERIOD):
+ * - Purchase: Nov 1, 2025 at $24.99
+ * - Coupon period: Dec 22, 2025 - Jan 19, 2026 at $18.99
+ * - Adjustment deadline: Dec 1, 2025 (30 days from purchase)
+ * - Dec 1 is BEFORE Dec 22 (coupon not valid yet) ✗
+ * - Result: NOT ELIGIBLE (deadline outside coupon period)
  *
  * @param {Array} receipts - Array of receipt objects
  * @param {Array} coupons - Array of coupon objects
- * @param {number} adjustmentWindowDays - Number of days before/after promotion to allow adjustments (default: 30)
+ * @param {number} adjustmentWindowDays - Number of days from purchase to claim adjustment (default: 30)
  * @returns {Array} Array of price adjustment opportunities
  */
 function calculatePriceAdjustments(receipts, coupons, adjustmentWindowDays = 30) {
@@ -105,23 +108,27 @@ function calculatePriceAdjustments(receipts, coupons, adjustmentWindowDays = 30)
             // Calculate how many days before promotion the purchase was made
             const daysBeforePromotion = Math.floor((couponStartDate - purchaseDate) / (1000 * 60 * 60 * 24));
 
-            // Purchase must be within adjustment window BEFORE promotion starts
-            // Example: If adjustmentWindow is 30 days, purchase must be within 30 days before promotion
-            if (daysBeforePromotion > adjustmentWindowDays) return; // Too old, not eligible
-
-            // Calculate adjustment deadline: X days from promotion START date
-            const adjustmentDeadline = new Date(couponStartDate);
+            // Calculate adjustment deadline: X days from PURCHASE date
+            const adjustmentDeadline = new Date(purchaseDate);
             adjustmentDeadline.setDate(adjustmentDeadline.getDate() + adjustmentWindowDays);
 
-            // Check if we're still within the adjustment window (from promotion start)
+            // Check if the adjustment deadline falls within the coupon validity period
+            const deadlineDuringCoupon = adjustmentDeadline >= couponStartDate && adjustmentDeadline <= couponEndDate;
+
+            // Not eligible if deadline doesn't fall within coupon period
+            if (!deadlineDuringCoupon) return;
+
+            // Check if we're still within the adjustment window (from purchase date)
             const eligible = today <= adjustmentDeadline;
 
             console.log(`   Item #${item.itemNumber}:`, {
                 purchaseDate: receipt.purchaseDate,
                 couponStartDate: coupon.validFrom,
-                daysBeforePromotion: daysBeforePromotion,
+                couponEndDate: coupon.validUntil,
                 adjustmentDeadline: adjustmentDeadline.toISOString().split('T')[0],
-                eligible: eligible
+                deadlineDuringCoupon: deadlineDuringCoupon,
+                eligible: eligible,
+                daysRemaining: Math.floor((adjustmentDeadline - today) / (1000 * 60 * 60 * 24))
             });
 
             // Case 1: Coupon has actual sale price - calculate exact adjustment
