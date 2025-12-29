@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto-Detect Coupon Grid - Admin</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196F3;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-weight: 600;
+            font-size: 14px;
+            color: #555;
+        }
+
+        select, input, button {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        .btn-secondary {
+            background: #2196F3;
+        }
+
+        .btn-secondary:hover {
+            background: #1976D2;
+        }
+
+        .btn-danger {
+            background: #f44336;
+        }
+
+        .btn-danger:hover {
+            background: #d32f2f;
+        }
+
+        .btn-warning {
+            background: #ff9800;
+        }
+
+        .btn-warning:hover {
+            background: #f57c00;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+        }
+
+        .image-panel {
+            position: relative;
+        }
+
+        #canvas-container {
+            position: relative;
+            display: inline-block;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            overflow: auto;
+            max-height: 80vh;
+        }
+
+        #coupon-image {
+            display: block;
+            max-width: 100%;
+        }
+
+        #overlay-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        .detected-boxes-panel {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            overflow-y: auto;
+            max-height: 80vh;
+        }
+
+        .box-card {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .box-card:hover {
+            border-color: #2196F3;
+            background: #f5f5f5;
+        }
+
+        .box-card.assigned {
+            border-color: #4CAF50;
+            background: #e8f5e9;
+        }
+
+        .box-card.selected {
+            border-color: #ff9800;
+            background: #fff3e0;
+        }
+
+        .box-number {
+            font-weight: 700;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .box-coords {
+            font-size: 11px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .box-assignment {
+            margin-top: 8px;
+            display: flex;
+            gap: 5px;
+        }
+
+        .box-assignment input {
+            flex: 1;
+            padding: 6px;
+            font-size: 13px;
+        }
+
+        .box-assignment button {
+            padding: 6px 10px;
+            font-size: 12px;
+        }
+
+        .progress {
+            margin: 15px 0;
+            padding: 10px;
+            background: #e8f5e9;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: 600;
+            color: #2e7d32;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+
+        .badge-detected {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-assigned {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        #detection-log {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Auto-Detect Coupon Grid</h1>
+
+        <div class="instructions">
+            <strong>📋 Instructions:</strong>
+            <ol style="margin: 10px 0 0 20px;">
+                <li>Select a coupon page from the dropdown</li>
+                <li>Click "Detect Grid" to automatically find rectangles</li>
+                <li>Click on detected boxes in the right panel to highlight them</li>
+                <li>Enter the item number and click "Assign"</li>
+                <li>Repeat for all detected boxes</li>
+                <li>Download the updated mapping file when done</li>
+            </ol>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>Coupon Page:</label>
+                <select id="page-select">
+                    <option value="">Select a page...</option>
+                </select>
+            </div>
+
+            <button onclick="detectGrid()" class="btn-warning">🔍 Detect Grid</button>
+            <button onclick="downloadMapping()" class="btn-secondary">📥 Download Mapping JSON</button>
+            <button onclick="clearDetections()" class="btn-danger">🗑️ Clear All</button>
+        </div>
+
+        <div class="progress" id="progress">
+            Detected: <span id="detected-count">0</span> boxes |
+            Assigned: <span id="assigned-count">0</span> items
+        </div>
+
+        <div class="content">
+            <div class="image-panel">
+                <div id="canvas-container">
+                    <img id="coupon-image" alt="Coupon page">
+                    <canvas id="overlay-canvas"></canvas>
+                </div>
+
+                <div id="detection-log" style="display: none;">
+                    <strong>Detection Log:</strong><br>
+                    <div id="log-content"></div>
+                </div>
+            </div>
+
+            <div class="detected-boxes-panel">
+                <h3 style="margin-bottom: 15px;">Detected Rectangles:</h3>
+                <div id="boxes-list">
+                    <p style="color: #666; font-size: 14px;">Click "Detect Grid" to find rectangles automatically</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load item-to-page mapping
+        let mapping = {};
+        let itemsByPage = {};
+        let currentPage = '';
+        let detectedBoxes = [];
+        let selectedBoxIndex = null;
+
+        const img = document.getElementById('coupon-image');
+        const canvas = document.getElementById('overlay-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Load mapping file
+        async function loadMapping() {
+            try {
+                const response = await fetch('coupons/item-to-page-mapping.json');
+                mapping = await response.json();
+
+                // Group items by page
+                const month = Object.keys(mapping)[0];
+                const items = mapping[month];
+
+                itemsByPage = {};
+                for (const [itemNumber, data] of Object.entries(items)) {
+                    const pageName = typeof data === 'string' ? data : data.page;
+                    if (!itemsByPage[pageName]) {
+                        itemsByPage[pageName] = [];
+                    }
+                    itemsByPage[pageName].push({
+                        itemNumber,
+                        coords: typeof data === 'object' ? data.coords : null
+                    });
+                }
+
+                populatePageDropdown();
+            } catch (error) {
+                console.error('Error loading mapping:', error);
+                alert('Could not load item-to-page-mapping.json');
+            }
+        }
+
+        function populatePageDropdown() {
+            const select = document.getElementById('page-select');
+            const pages = Object.keys(itemsByPage).sort();
+
+            pages.forEach(page => {
+                const option = document.createElement('option');
+                option.value = page;
+                option.textContent = page;
+                select.appendChild(option);
+            });
+
+            select.addEventListener('change', (e) => {
+                loadPage(e.target.value);
+            });
+        }
+
+        function loadPage(pageName) {
+            currentPage = pageName;
+            const imageUrl = `coupons/images/2026-01/${pageName}`;
+
+            img.src = imageUrl;
+            img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                canvas.style.width = img.width + 'px';
+                canvas.style.height = img.height + 'px';
+                clearDetections();
+            };
+        }
+
+        function log(message) {
+            const logDiv = document.getElementById('detection-log');
+            const content = document.getElementById('log-content');
+            logDiv.style.display = 'block';
+            content.innerHTML += message + '<br>';
+            content.scrollTop = content.scrollHeight;
+        }
+
+        async function detectGrid() {
+            if (!currentPage) {
+                alert('Please select a coupon page first!');
+                return;
+            }
+
+            log('🔍 Starting grid detection...');
+            detectedBoxes = [];
+
+            // Create a temporary canvas for processing
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = img.width;
+            tempCanvas.height = img.height;
+
+            // Draw image to canvas
+            tempCtx.drawImage(img, 0, 0);
+            const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
+
+            log('📐 Image size: ' + img.width + 'x' + img.height);
+            log('🔎 Detecting edges...');
+
+            // Apply edge detection
+            const edges = detectEdges(imageData);
+
+            log('📏 Finding lines...');
+
+            // Find horizontal and vertical lines
+            const lines = findLines(edges, img.width, img.height);
+
+            log('✅ Found ' + lines.horizontal.length + ' horizontal lines');
+            log('✅ Found ' + lines.vertical.length + ' vertical lines');
+
+            // Create rectangles from line intersections
+            const rectangles = createRectanglesFromLines(lines);
+
+            log('📦 Created ' + rectangles.length + ' rectangles');
+
+            detectedBoxes = rectangles;
+            renderDetectedBoxes();
+            updateProgress();
+        }
+
+        function detectEdges(imageData) {
+            const width = imageData.width;
+            const height = imageData.height;
+            const data = imageData.data;
+            const edges = new Uint8Array(width * height);
+
+            // Convert to grayscale and detect edges using simple Sobel operator
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    const idx = (y * width + x) * 4;
+
+                    // Get grayscale values of surrounding pixels
+                    const tl = data[(idx - width * 4 - 4)] * 0.299 + data[(idx - width * 4 - 3)] * 0.587 + data[(idx - width * 4 - 2)] * 0.114;
+                    const tc = data[(idx - width * 4)] * 0.299 + data[(idx - width * 4 + 1)] * 0.587 + data[(idx - width * 4 + 2)] * 0.114;
+                    const tr = data[(idx - width * 4 + 4)] * 0.299 + data[(idx - width * 4 + 5)] * 0.587 + data[(idx - width * 4 + 6)] * 0.114;
+
+                    const ml = data[(idx - 4)] * 0.299 + data[(idx - 3)] * 0.587 + data[(idx - 2)] * 0.114;
+                    const mr = data[(idx + 4)] * 0.299 + data[(idx + 5)] * 0.587 + data[(idx + 6)] * 0.114;
+
+                    const bl = data[(idx + width * 4 - 4)] * 0.299 + data[(idx + width * 4 - 3)] * 0.587 + data[(idx + width * 4 - 2)] * 0.114;
+                    const bc = data[(idx + width * 4)] * 0.299 + data[(idx + width * 4 + 1)] * 0.587 + data[(idx + width * 4 + 2)] * 0.114;
+                    const br = data[(idx + width * 4 + 4)] * 0.299 + data[(idx + width * 4 + 5)] * 0.587 + data[(idx + width * 4 + 6)] * 0.114;
+
+                    // Sobel operator
+                    const gx = -tl - 2*ml - bl + tr + 2*mr + br;
+                    const gy = -tl - 2*tc - tr + bl + 2*bc + br;
+                    const magnitude = Math.sqrt(gx*gx + gy*gy);
+
+                    edges[y * width + x] = magnitude > 50 ? 255 : 0;
+                }
+            }
+
+            return edges;
+        }
+
+        function findLines(edges, width, height) {
+            const horizontal = [];
+            const vertical = [];
+            const threshold = width * 0.4; // Line must span at least 40% of image
+
+            // Find horizontal lines
+            for (let y = 0; y < height; y += 5) { // Sample every 5 pixels
+                let edgeCount = 0;
+                for (let x = 0; x < width; x++) {
+                    if (edges[y * width + x] > 0) edgeCount++;
+                }
+                if (edgeCount > threshold) {
+                    horizontal.push(y);
+                }
+            }
+
+            // Find vertical lines
+            for (let x = 0; x < width; x += 5) { // Sample every 5 pixels
+                let edgeCount = 0;
+                for (let y = 0; y < height; y++) {
+                    if (edges[y * width + x] > 0) edgeCount++;
+                }
+                if (edgeCount > height * 0.4) {
+                    vertical.push(x);
+                }
+            }
+
+            // Merge nearby lines (within 10 pixels)
+            horizontal.sort((a, b) => a - b);
+            vertical.sort((a, b) => a - b);
+
+            const mergedH = mergeNearbyLines(horizontal, 10);
+            const mergedV = mergeNearbyLines(vertical, 10);
+
+            return { horizontal: mergedH, vertical: mergedV };
+        }
+
+        function mergeNearbyLines(lines, threshold) {
+            if (lines.length === 0) return [];
+
+            const merged = [lines[0]];
+            for (let i = 1; i < lines.length; i++) {
+                if (lines[i] - merged[merged.length - 1] > threshold) {
+                    merged.push(lines[i]);
+                }
+            }
+            return merged;
+        }
+
+        function createRectanglesFromLines(lines) {
+            const rectangles = [];
+            const { horizontal, vertical } = lines;
+
+            // Create rectangles from all combinations of adjacent lines
+            for (let i = 0; i < horizontal.length - 1; i++) {
+                for (let j = 0; j < vertical.length - 1; j++) {
+                    const x = vertical[j];
+                    const y = horizontal[i];
+                    const width = vertical[j + 1] - vertical[j];
+                    const height = horizontal[i + 1] - horizontal[i];
+
+                    // Filter out very small rectangles
+                    if (width > 50 && height > 50) {
+                        rectangles.push({ x, y, width, height, itemNumber: null });
+                    }
+                }
+            }
+
+            return rectangles;
+        }
+
+        function renderDetectedBoxes() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw all detected boxes
+            detectedBoxes.forEach((box, index) => {
+                const isSelected = index === selectedBoxIndex;
+                const isAssigned = box.itemNumber !== null;
+
+                ctx.strokeStyle = isSelected ? '#ff9800' : (isAssigned ? '#4CAF50' : '#2196F3');
+                ctx.lineWidth = isSelected ? 4 : 2;
+                ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+                // Draw box number
+                ctx.fillStyle = isSelected ? '#ff9800' : (isAssigned ? '#4CAF50' : '#2196F3');
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText('#' + (index + 1), box.x + 5, box.y + 20);
+            });
+
+            // Update list
+            const listEl = document.getElementById('boxes-list');
+            listEl.innerHTML = detectedBoxes.map((box, index) => {
+                const isAssigned = box.itemNumber !== null;
+                const badgeClass = isAssigned ? 'badge-assigned' : 'badge-detected';
+                const cardClass = 'box-card' + (index === selectedBoxIndex ? ' selected' : '') + (isAssigned ? ' assigned' : '');
+
+                return `
+                    <div class="${cardClass}" onclick="selectBox(${index})">
+                        <div class="box-number">Box #${index + 1}</div>
+                        <div class="box-coords">x:${box.x}, y:${box.y}, ${box.width}×${box.height}</div>
+                        <span class="status-badge ${badgeClass}">
+                            ${isAssigned ? '✅ Item #' + box.itemNumber : '⚠️ Not Assigned'}
+                        </span>
+                        ${!isAssigned ? `
+                            <div class="box-assignment">
+                                <input type="text" id="item-input-${index}" placeholder="Item #" onkeypress="if(event.key==='Enter') assignItem(${index})">
+                                <button onclick="assignItem(${index})">Assign</button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function selectBox(index) {
+            selectedBoxIndex = index;
+            renderDetectedBoxes();
+        }
+
+        function assignItem(index) {
+            const input = document.getElementById('item-input-' + index);
+            const itemNumber = input.value.trim();
+
+            if (!itemNumber) {
+                alert('Please enter an item number!');
+                return;
+            }
+
+            detectedBoxes[index].itemNumber = itemNumber;
+
+            // Save to mapping
+            const month = Object.keys(mapping)[0];
+            const currentData = mapping[month][itemNumber];
+
+            mapping[month][itemNumber] = {
+                page: typeof currentData === 'string' ? currentData : currentPage,
+                coords: {
+                    x: Math.round(detectedBoxes[index].x),
+                    y: Math.round(detectedBoxes[index].y),
+                    width: Math.round(detectedBoxes[index].width),
+                    height: Math.round(detectedBoxes[index].height)
+                }
+            };
+
+            log('✅ Assigned item #' + itemNumber + ' to box #' + (index + 1));
+
+            renderDetectedBoxes();
+            updateProgress();
+        }
+
+        function clearDetections() {
+            detectedBoxes = [];
+            selectedBoxIndex = null;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            document.getElementById('boxes-list').innerHTML = '<p style="color: #666; font-size: 14px;">Click "Detect Grid" to find rectangles automatically</p>';
+            document.getElementById('detection-log').style.display = 'none';
+            document.getElementById('log-content').innerHTML = '';
+            updateProgress();
+        }
+
+        function updateProgress() {
+            const assignedCount = detectedBoxes.filter(box => box.itemNumber !== null).length;
+            document.getElementById('detected-count').textContent = detectedBoxes.length;
+            document.getElementById('assigned-count').textContent = assignedCount;
+        }
+
+        function downloadMapping() {
+            const jsonString = JSON.stringify(mapping, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'item-to-page-mapping.json';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            alert('✅ Downloaded! Replace the file at:\ncoupons/item-to-page-mapping.json');
+        }
+
+        // Initialize
+        loadMapping();
+    </script>
+</body>
+</html>
