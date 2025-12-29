@@ -233,6 +233,22 @@ async function toggleShowExpired() {
     await renderComparisons();
 }
 
+async function recalculateComparisons() {
+    console.log('🔄 Recalculating price comparisons...');
+    showToast('Recalculating price comparisons...', 'info');
+
+    try {
+        // Force re-fetch coupons from GitHub (bypassing any cache)
+        await renderComparisons();
+
+        showToast('Price comparisons updated!', 'success');
+        console.log('✅ Recalculation complete');
+    } catch (error) {
+        console.error('Failed to recalculate:', error);
+        showToast('Failed to recalculate: ' + error.message, 'error');
+    }
+}
+
 async function renderComparisons() {
     console.log('🔄 renderComparisons called - View Coupon button should appear');
     const adjustmentWindow = await getSetting('adjustmentWindow', 30);

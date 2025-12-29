@@ -20,14 +20,18 @@ function getMonthlyFileNames() {
 
 /**
  * Load coupons from monthly JSON files (current and next month)
+ * @param {boolean} bustCache - If true, adds timestamp to force fresh fetch
  */
-async function loadMonthlyCoupons() {
+async function loadMonthlyCoupons(bustCache = false) {
     const { current, next } = getMonthlyFileNames();
     const allCoupons = [];
 
+    // Add cache-busting parameter if requested
+    const cacheBuster = bustCache ? `?t=${Date.now()}` : '';
+
     try {
         // Load current month
-        const currentResponse = await fetch(current);
+        const currentResponse = await fetch(current + cacheBuster);
         if (currentResponse.ok) {
             const currentData = await currentResponse.json();
             if (currentData.coupons) {
@@ -41,7 +45,7 @@ async function loadMonthlyCoupons() {
 
     try {
         // Load next month (for coupons that span month boundaries)
-        const nextResponse = await fetch(next);
+        const nextResponse = await fetch(next + cacheBuster);
         if (nextResponse.ok) {
             const nextData = await nextResponse.json();
             if (nextData.coupons) {
