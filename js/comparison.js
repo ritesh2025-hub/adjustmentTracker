@@ -4,20 +4,29 @@
  * Calculate price adjustments by comparing receipts with current coupon prices
  *
  * LOGIC:
- * - Item purchased BEFORE coupon promotion starts → Eligible for adjustment
- * - Adjustment window: X days FROM promotion start date (not from purchase date)
+ * - Item purchased BEFORE coupon promotion starts → Check if within window
+ * - Purchase must be within X days BEFORE promotion (e.g., 30 days before promo start)
+ * - Adjustment deadline: X days FROM promotion start date
  * - Item purchased DURING promotion period → No adjustment (already got discount)
  * - Item purchased AFTER promotion ends → No adjustment
+ * - Item purchased TOO LONG before promotion → No adjustment (outside window)
  *
- * EXAMPLE:
+ * EXAMPLE 1 (ELIGIBLE):
  * - Purchase: Jan 1, 2026 at $24.99
  * - Promotion: Jan 15 - Jan 31, 2026 at $18.99
- * - Adjustment window: 30 days from Jan 15 = until Feb 14, 2026
- * - Result: ELIGIBLE for $6.00 adjustment (if claimed before Feb 14)
+ * - Days before promo: 14 days (within 30-day window)
+ * - Adjustment deadline: Feb 14, 2026 (30 days from Jan 15)
+ * - Result: ELIGIBLE for $6.00 adjustment until Feb 14
+ *
+ * EXAMPLE 2 (TOO OLD):
+ * - Purchase: Dec 1, 2022 at $24.99
+ * - Promotion: Jan 15, 2026 at $18.99
+ * - Days before promo: 1,141 days (way outside 30-day window)
+ * - Result: NOT ELIGIBLE (too old)
  *
  * @param {Array} receipts - Array of receipt objects
  * @param {Array} coupons - Array of coupon objects
- * @param {number} adjustmentWindowDays - Number of days FROM coupon start to allow adjustments (default: 30)
+ * @param {number} adjustmentWindowDays - Number of days before/after promotion to allow adjustments (default: 30)
  * @returns {Array} Array of price adjustment opportunities
  */
 function calculatePriceAdjustments(receipts, coupons, adjustmentWindowDays = 30) {
@@ -87,15 +96,19 @@ function calculatePriceAdjustments(receipts, coupons, adjustmentWindowDays = 30)
 
             if (!purchasedBeforePromotion) return; // Only adjust if bought before promotion
 
+            // Calculate how many days before promotion the purchase was made
+            const daysBeforePromotion = Math.floor((couponStartDate - purchaseDate) / (1000 * 60 * 60 * 24));
+
+            // Purchase must be within adjustment window BEFORE promotion starts
+            // Example: If adjustmentWindow is 30 days, purchase must be within 30 days before promotion
+            if (daysBeforePromotion > adjustmentWindowDays) return; // Too old, not eligible
+
             // Calculate adjustment deadline: X days from promotion START date
             const adjustmentDeadline = new Date(couponStartDate);
             adjustmentDeadline.setDate(adjustmentDeadline.getDate() + adjustmentWindowDays);
 
-            // Check if we're still within the adjustment window
+            // Check if we're still within the adjustment window (from promotion start)
             const eligible = today <= adjustmentDeadline;
-
-            // Calculate how many days ago the purchase was (from promotion start)
-            const daysBeforePromotion = Math.floor((couponStartDate - purchaseDate) / (1000 * 60 * 60 * 24));
 
             // Case 1: Coupon has actual sale price - calculate exact adjustment
             if (couponInfo.price && item.finalPrice > couponInfo.price) {
