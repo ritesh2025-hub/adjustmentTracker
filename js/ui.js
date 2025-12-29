@@ -123,15 +123,37 @@ async function deleteCouponConfirm(couponId) {
     }
 }
 
+async function toggleShowExpired() {
+    const checkbox = document.getElementById('show-expired-toggle');
+    await setSetting('showExpiredAdjustments', checkbox.checked);
+    await renderComparisons();
+}
+
 async function renderComparisons() {
     const adjustmentWindow = await getSetting('adjustmentWindow', 30);
+    const showExpired = await getSetting('showExpiredAdjustments', false);
+
+    // Update checkbox state
+    const checkbox = document.getElementById('show-expired-toggle');
+    if (checkbox) {
+        checkbox.checked = showExpired;
+    }
+
     const receipts = await getReceipts();
 
     // Load coupons from GitHub monthly files instead of IndexedDB
     const coupons = await loadMonthlyCouponsToMemory();
 
-    const adjustments = calculatePriceAdjustments(receipts, coupons, adjustmentWindow);
-    
+    let adjustments = calculatePriceAdjustments(receipts, coupons, adjustmentWindow);
+
+    // Sort by purchase date ascending (oldest first)
+    adjustments.sort((a, b) => new Date(a.purchaseDate) - new Date(b.purchaseDate));
+
+    // Filter out expired if showExpired is false
+    if (!showExpired) {
+        adjustments = adjustments.filter(adj => adj.eligible);
+    }
+
     const listEl = document.getElementById('comparisons-list');
     if (adjustments.length === 0) {
         document.getElementById('comparison-summary').style.display = 'none';
@@ -139,14 +161,14 @@ async function renderComparisons() {
         document.getElementById('no-comparisons').style.display = 'block';
         return;
     }
-    
+
     document.getElementById('no-comparisons').style.display = 'none';
     document.getElementById('comparison-summary').style.display = 'block';
-    
+
     const stats = getAdjustmentStats(adjustments);
     document.getElementById('total-adjustment').textContent = formatCurrency(stats.totalSavings);
     document.getElementById('eligible-count').textContent = stats.eligible;
-    
+
     listEl.innerHTML = adjustments.map(adj => {
         const formatted = formatAdjustment(adj);
         const statusIndicator = adj.eligible ? '🟢' : '⚪';
