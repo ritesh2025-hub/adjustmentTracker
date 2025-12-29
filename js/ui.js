@@ -199,11 +199,27 @@ async function viewCouponImage(couponId, itemNumber) {
         const response = await fetch('coupons/item-to-page-mapping.json');
         const mapping = await response.json();
         const month = coupon.validUntil.substring(0, 7); // Get YYYY-MM format
-        const pageFilename = mapping[month] && mapping[month][itemNumber];
+        const itemData = mapping[month] && mapping[month][itemNumber];
 
-        if (pageFilename) {
+        if (itemData) {
+            // Support both old string format and new object format
+            const pageFilename = typeof itemData === 'string' ? itemData : itemData.page;
+            const coords = typeof itemData === 'object' ? itemData.coords : null;
+
             const imageUrl = 'https://raw.githubusercontent.com/ritesh2025-hub/adjustmentTracker/main/coupons/images/' + month + '/' + pageFilename;
-            content += '<div style="margin-top: 20px;"><img src="' + imageUrl + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;" alt="Coupon page" onerror="this.parentElement.innerHTML=\'<p style=color:red>Image not yet uploaded to GitHub</p>\'"></div>';
+
+            // If coordinates are available, show image with highlighted region
+            if (coords && coords.width > 0) {
+                content += '<div style="margin-top: 20px; position: relative; display: inline-block;">';
+                content += '<img src="' + imageUrl + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px; display: block;" alt="Coupon page" onerror="this.parentElement.innerHTML=\'<p style=color:red>Image not yet uploaded to GitHub</p>\'" id="coupon-image-with-coords">';
+                // Highlight box overlay
+                content += '<div style="position: absolute; left: ' + coords.x + 'px; top: ' + coords.y + 'px; width: ' + coords.width + 'px; height: ' + coords.height + 'px; border: 3px solid #4CAF50; box-shadow: 0 0 15px rgba(76, 175, 80, 0.6); background: rgba(76, 175, 80, 0.1); pointer-events: none;"></div>';
+                content += '</div>';
+                content += '<p style="margin-top: 10px; font-size: 0.9rem; color: #4CAF50;"><strong>✓ Item location highlighted in green</strong></p>';
+            } else {
+                // No coordinates, show full image
+                content += '<div style="margin-top: 20px;"><img src="' + imageUrl + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;" alt="Coupon page" onerror="this.parentElement.innerHTML=\'<p style=color:red>Image not yet uploaded to GitHub</p>\'"></div>';
+            }
         } else if (coupon.imageData) {
             content += '<div style="margin-top: 20px;"><img src="' + coupon.imageData + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;" alt="Coupon image"></div>';
         } else if (coupon.imageUrl) {

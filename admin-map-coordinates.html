@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coupon Item Coordinate Mapper - Admin</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196F3;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-weight: 600;
+            font-size: 14px;
+            color: #555;
+        }
+
+        select, input, button {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        .btn-secondary {
+            background: #2196F3;
+        }
+
+        .btn-secondary:hover {
+            background: #1976D2;
+        }
+
+        .btn-danger {
+            background: #f44336;
+        }
+
+        .btn-danger:hover {
+            background: #d32f2f;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+        }
+
+        .image-panel {
+            position: relative;
+        }
+
+        #canvas-container {
+            position: relative;
+            display: inline-block;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            overflow: auto;
+            max-height: 80vh;
+        }
+
+        #coupon-image {
+            display: block;
+            max-width: 100%;
+            cursor: crosshair;
+        }
+
+        #selection-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        .items-panel {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            overflow-y: auto;
+            max-height: 80vh;
+        }
+
+        .item-card {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .item-card:hover {
+            border-color: #2196F3;
+            background: #f5f5f5;
+        }
+
+        .item-card.active {
+            border-color: #4CAF50;
+            background: #e8f5e9;
+        }
+
+        .item-card.mapped {
+            border-color: #4CAF50;
+            background: #f1f8f4;
+        }
+
+        .item-number {
+            font-weight: 700;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .item-desc {
+            font-size: 13px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .item-status {
+            font-size: 12px;
+            margin-top: 6px;
+            padding: 4px 8px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+
+        .status-unmapped {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-mapped {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .coords-display {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 15px;
+            font-size: 13px;
+        }
+
+        .progress {
+            margin: 15px 0;
+            padding: 10px;
+            background: #e8f5e9;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: 600;
+            color: #2e7d32;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Coupon Item Coordinate Mapper</h1>
+
+        <div class="instructions">
+            <strong>📋 Instructions:</strong>
+            <ol style="margin: 10px 0 0 20px;">
+                <li>Select a coupon page from the dropdown</li>
+                <li>Click an item from the list on the right</li>
+                <li>Click and drag on the image to draw a box around that item</li>
+                <li>The coordinates will be saved automatically</li>
+                <li>Repeat for all items on the page</li>
+                <li>Download the updated mapping file when done</li>
+            </ol>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>Coupon Page:</label>
+                <select id="page-select">
+                    <option value="">Select a page...</option>
+                </select>
+            </div>
+
+            <button onclick="downloadMapping()" class="btn-secondary">📥 Download Mapping JSON</button>
+            <button onclick="clearCurrentSelection()" class="btn-danger">🗑️ Clear Current Selection</button>
+        </div>
+
+        <div class="progress" id="progress">
+            Mapped: <span id="mapped-count">0</span> / <span id="total-count">0</span> items
+        </div>
+
+        <div class="content">
+            <div class="image-panel">
+                <div id="canvas-container">
+                    <img id="coupon-image" alt="Coupon page">
+                    <canvas id="selection-canvas"></canvas>
+                </div>
+            </div>
+
+            <div class="items-panel">
+                <h3 style="margin-bottom: 15px;">Items on This Page:</h3>
+                <div id="items-list"></div>
+
+                <div class="coords-display" id="coords-display" style="display: none;">
+                    <strong>Current Selection:</strong><br>
+                    X: <span id="coord-x">0</span>px<br>
+                    Y: <span id="coord-y">0</span>px<br>
+                    Width: <span id="coord-width">0</span>px<br>
+                    Height: <span id="coord-height">0</span>px
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load item-to-page mapping
+        let mapping = {};
+        let itemsByPage = {};
+        let currentPage = '';
+        let selectedItem = null;
+        let isDrawing = false;
+        let startX, startY;
+
+        const img = document.getElementById('coupon-image');
+        const canvas = document.getElementById('selection-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Load mapping file
+        async function loadMapping() {
+            try {
+                const response = await fetch('coupons/item-to-page-mapping.json');
+                mapping = await response.json();
+
+                // Group items by page
+                const month = Object.keys(mapping)[0];
+                const items = mapping[month];
+
+                itemsByPage = {};
+                for (const [itemNumber, data] of Object.entries(items)) {
+                    const pageName = typeof data === 'string' ? data : data.page;
+                    if (!itemsByPage[pageName]) {
+                        itemsByPage[pageName] = [];
+                    }
+                    itemsByPage[pageName].push({
+                        itemNumber,
+                        coords: typeof data === 'object' ? data.coords : null
+                    });
+                }
+
+                populatePageDropdown();
+            } catch (error) {
+                console.error('Error loading mapping:', error);
+                alert('Could not load item-to-page-mapping.json');
+            }
+        }
+
+        function populatePageDropdown() {
+            const select = document.getElementById('page-select');
+            const pages = Object.keys(itemsByPage).sort();
+
+            pages.forEach(page => {
+                const option = document.createElement('option');
+                option.value = page;
+                option.textContent = page;
+                select.appendChild(option);
+            });
+
+            select.addEventListener('change', (e) => {
+                loadPage(e.target.value);
+            });
+        }
+
+        function loadPage(pageName) {
+            currentPage = pageName;
+            const imageUrl = `coupons/images/2026-01/${pageName}`;
+
+            img.src = imageUrl;
+            img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                canvas.style.width = img.width + 'px';
+                canvas.style.height = img.height + 'px';
+                renderItems();
+                updateProgress();
+            };
+        }
+
+        function renderItems() {
+            const itemsList = document.getElementById('items-list');
+            const items = itemsByPage[currentPage] || [];
+
+            itemsList.innerHTML = items.map(item => {
+                const hasCords = item.coords && item.coords.width > 0;
+                const statusClass = hasCords ? 'status-mapped' : 'status-unmapped';
+                const cardClass = hasCords ? 'mapped' : '';
+
+                return `
+                    <div class="item-card ${cardClass}" onclick="selectItem('${item.itemNumber}')">
+                        <div class="item-number">#${item.itemNumber}</div>
+                        <div class="item-status ${statusClass}">
+                            ${hasCords ? '✅ Mapped' : '⚠️ Not Mapped'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function selectItem(itemNumber) {
+            selectedItem = itemNumber;
+
+            // Update UI
+            document.querySelectorAll('.item-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            event.target.closest('.item-card').classList.add('active');
+
+            // Show existing coordinates if any
+            const month = Object.keys(mapping)[0];
+            const data = mapping[month][itemNumber];
+            if (typeof data === 'object' && data.coords) {
+                drawBox(data.coords.x, data.coords.y, data.coords.width, data.coords.height);
+            } else {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        // Mouse drawing events
+        img.addEventListener('mousedown', (e) => {
+            if (!selectedItem) {
+                alert('Please select an item from the list first!');
+                return;
+            }
+
+            isDrawing = true;
+            const rect = img.getBoundingClientRect();
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+        });
+
+        img.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+
+            const rect = img.getBoundingClientRect();
+            const currentX = e.clientX - rect.left;
+            const currentY = e.clientY - rect.top;
+
+            const width = currentX - startX;
+            const height = currentY - startY;
+
+            drawBox(startX, startY, width, height);
+            updateCoordsDisplay(startX, startY, width, height);
+        });
+
+        img.addEventListener('mouseup', (e) => {
+            if (!isDrawing) return;
+
+            isDrawing = false;
+
+            const rect = img.getBoundingClientRect();
+            const endX = e.clientX - rect.left;
+            const endY = e.clientY - rect.top;
+
+            const width = endX - startX;
+            const height = endY - startY;
+
+            saveCoordinates(selectedItem, startX, startY, width, height);
+        });
+
+        function drawBox(x, y, width, height) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#4CAF50';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(x, y, width, height);
+
+            // Add semi-transparent fill
+            ctx.fillStyle = 'rgba(76, 175, 80, 0.1)';
+            ctx.fillRect(x, y, width, height);
+        }
+
+        function updateCoordsDisplay(x, y, width, height) {
+            document.getElementById('coords-display').style.display = 'block';
+            document.getElementById('coord-x').textContent = Math.round(x);
+            document.getElementById('coord-y').textContent = Math.round(y);
+            document.getElementById('coord-width').textContent = Math.round(width);
+            document.getElementById('coord-height').textContent = Math.round(height);
+        }
+
+        function saveCoordinates(itemNumber, x, y, width, height) {
+            const month = Object.keys(mapping)[0];
+            const currentData = mapping[month][itemNumber];
+
+            // Update to new format
+            mapping[month][itemNumber] = {
+                page: typeof currentData === 'string' ? currentData : currentData.page,
+                coords: {
+                    x: Math.round(x),
+                    y: Math.round(y),
+                    width: Math.round(width),
+                    height: Math.round(height)
+                }
+            };
+
+            // Update item in itemsByPage
+            const item = itemsByPage[currentPage].find(i => i.itemNumber === itemNumber);
+            if (item) {
+                item.coords = mapping[month][itemNumber].coords;
+            }
+
+            renderItems();
+            updateProgress();
+
+            console.log(`✅ Saved coordinates for item #${itemNumber}`);
+        }
+
+        function clearCurrentSelection() {
+            if (!selectedItem) {
+                alert('No item selected!');
+                return;
+            }
+
+            const month = Object.keys(mapping)[0];
+            const currentData = mapping[month][selectedItem];
+
+            mapping[month][selectedItem] = {
+                page: typeof currentData === 'string' ? currentData : currentData.page,
+                coords: { x: 0, y: 0, width: 0, height: 0 }
+            };
+
+            const item = itemsByPage[currentPage].find(i => i.itemNumber === selectedItem);
+            if (item) {
+                item.coords = null;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            renderItems();
+            updateProgress();
+        }
+
+        function updateProgress() {
+            const month = Object.keys(mapping)[0];
+            const allItems = Object.values(mapping[month]);
+            const mappedCount = allItems.filter(data => {
+                return typeof data === 'object' && data.coords && data.coords.width > 0;
+            }).length;
+
+            document.getElementById('mapped-count').textContent = mappedCount;
+            document.getElementById('total-count').textContent = allItems.length;
+        }
+
+        function downloadMapping() {
+            const jsonString = JSON.stringify(mapping, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'item-to-page-mapping.json';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            alert('✅ Downloaded! Replace the file at:\ncoupons/item-to-page-mapping.json');
+        }
+
+        // Initialize
+        loadMapping();
+    </script>
+</body>
+</html>
