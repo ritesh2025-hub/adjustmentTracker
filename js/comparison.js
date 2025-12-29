@@ -2,9 +2,22 @@
 
 /**
  * Calculate price adjustments by comparing receipts with current coupon prices
+ *
+ * LOGIC:
+ * - Item purchased BEFORE coupon promotion starts → Eligible for adjustment
+ * - Adjustment window: X days FROM promotion start date (not from purchase date)
+ * - Item purchased DURING promotion period → No adjustment (already got discount)
+ * - Item purchased AFTER promotion ends → No adjustment
+ *
+ * EXAMPLE:
+ * - Purchase: Jan 1, 2026 at $24.99
+ * - Promotion: Jan 15 - Jan 31, 2026 at $18.99
+ * - Adjustment window: 30 days from Jan 15 = until Feb 14, 2026
+ * - Result: ELIGIBLE for $6.00 adjustment (if claimed before Feb 14)
+ *
  * @param {Array} receipts - Array of receipt objects
  * @param {Array} coupons - Array of coupon objects
- * @param {number} adjustmentWindowDays - Number of days after purchase to allow adjustments
+ * @param {number} adjustmentWindowDays - Number of days FROM coupon start to allow adjustments (default: 30)
  * @returns {Array} Array of price adjustment opportunities
  */
 function calculatePriceAdjustments(receipts, coupons, adjustmentWindowDays = 30) {
@@ -50,16 +63,39 @@ function calculatePriceAdjustments(receipts, coupons, adjustmentWindowDays = 30)
         if (!receipt.items) return;
 
         const purchaseDate = new Date(receipt.purchaseDate);
-        const daysAgo = Math.floor((today - purchaseDate) / (1000 * 60 * 60 * 24));
 
         receipt.items.forEach(item => {
             const couponInfo = couponPrices[item.itemNumber];
 
             if (!couponInfo) return; // No matching coupon
 
-            const eligible = daysAgo <= adjustmentWindowDays;
-            const adjustmentDeadline = new Date(purchaseDate);
+            // Get coupon validity period from the matching coupon
+            const coupon = coupons.find(c => c.id === couponInfo.couponId);
+            if (!coupon) return;
+
+            const couponStartDate = new Date(coupon.validFrom);
+            const couponEndDate = new Date(coupon.validUntil);
+
+            // Check if purchase was DURING coupon promotion period
+            const purchasedDuringPromotion = purchaseDate >= couponStartDate && purchaseDate <= couponEndDate;
+
+            // If purchased during promotion, they already got the discount - no adjustment
+            if (purchasedDuringPromotion) return;
+
+            // Check if purchase was BEFORE promotion started
+            const purchasedBeforePromotion = purchaseDate < couponStartDate;
+
+            if (!purchasedBeforePromotion) return; // Only adjust if bought before promotion
+
+            // Calculate adjustment deadline: X days from promotion START date
+            const adjustmentDeadline = new Date(couponStartDate);
             adjustmentDeadline.setDate(adjustmentDeadline.getDate() + adjustmentWindowDays);
+
+            // Check if we're still within the adjustment window
+            const eligible = today <= adjustmentDeadline;
+
+            // Calculate how many days ago the purchase was (from promotion start)
+            const daysBeforePromotion = Math.floor((couponStartDate - purchaseDate) / (1000 * 60 * 60 * 24));
 
             // Case 1: Coupon has actual sale price - calculate exact adjustment
             if (couponInfo.price && item.finalPrice > couponInfo.price) {
@@ -74,7 +110,9 @@ function calculatePriceAdjustments(receipts, coupons, adjustmentWindowDays = 30)
                     discountAmount: couponInfo.discount || null,
                     isDiscountOnly: false,
                     purchaseDate: receipt.purchaseDate,
-                    daysAgo: daysAgo,
+                    daysBeforePromotion: daysBeforePromotion,
+                    couponStartDate: coupon.validFrom,
+                    daysAgo: daysBeforePromotion, // For backwards compatibility
                     eligible: eligible,
                     adjustmentDeadline: adjustmentDeadline.toISOString().split('T')[0],
                     couponValidUntil: couponInfo.validUntil,
@@ -96,7 +134,9 @@ function calculatePriceAdjustments(receipts, coupons, adjustmentWindowDays = 30)
                     discountAmount: couponInfo.discount,
                     isDiscountOnly: true, // Flag to display differently in UI
                     purchaseDate: receipt.purchaseDate,
-                    daysAgo: daysAgo,
+                    daysBeforePromotion: daysBeforePromotion,
+                    couponStartDate: coupon.validFrom,
+                    daysAgo: daysBeforePromotion, // For backwards compatibility
                     eligible: eligible,
                     adjustmentDeadline: adjustmentDeadline.toISOString().split('T')[0],
                     couponValidUntil: couponInfo.validUntil,
