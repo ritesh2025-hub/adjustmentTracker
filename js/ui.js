@@ -195,11 +195,12 @@ async function viewCouponImage(couponId, itemNumber) {
     }
 
     // Load item-to-page mapping and get specific page image
+    let itemData = null;
     try {
         const response = await fetch('coupons/item-to-page-mapping.json');
         const mapping = await response.json();
         const month = coupon.validUntil.substring(0, 7); // Get YYYY-MM format
-        const itemData = mapping[month] && mapping[month][itemNumber];
+        itemData = mapping[month] && mapping[month][itemNumber];
 
         if (itemData) {
             // Support both old string format and new object format
@@ -212,7 +213,7 @@ async function viewCouponImage(couponId, itemNumber) {
             if (coords && coords.width > 0) {
                 // Use percentage-based positioning so it scales with the image
                 content += '<div style="margin-top: 20px; position: relative; display: inline-block; width: 100%;">';
-                content += '<img src="' + imageUrl + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px; display: block;" alt="Coupon page" onerror="this.parentElement.innerHTML=\'<p style=color:red>Image not yet uploaded to GitHub</p>\'" id="coupon-image-with-coords" onload="scaleHighlightBox(' + coords.x + ',' + coords.y + ',' + coords.width + ',' + coords.height + ')">';
+                content += '<img src="' + imageUrl + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px; display: block;" alt="Coupon page" onerror="this.parentElement.innerHTML=\'<p style=color:red>Image not yet uploaded to GitHub</p>\'" id="coupon-image-with-coords">';
                 // Highlight box overlay - will be positioned by JavaScript after image loads
                 content += '<div id="highlight-box" style="position: absolute; border: 4px solid #4CAF50; box-shadow: 0 0 20px rgba(76, 175, 80, 0.8); background: rgba(76, 175, 80, 0.15); pointer-events: none; display: none;"></div>';
                 content += '</div>';
@@ -242,13 +243,31 @@ async function viewCouponImage(couponId, itemNumber) {
     }
 
     showModal(content);
+
+    // If coordinates exist, set up the highlight box after modal opens
+    if (itemData && typeof itemData === 'object' && itemData.coords && itemData.coords.width > 0) {
+        setTimeout(() => {
+            scaleHighlightBox(itemData.coords.x, itemData.coords.y, itemData.coords.width, itemData.coords.height);
+        }, 100);
+    }
 }
 
 function scaleHighlightBox(origX, origY, origWidth, origHeight) {
     const img = document.getElementById('coupon-image-with-coords');
     const box = document.getElementById('highlight-box');
 
-    if (!img || !box) return;
+    if (!img || !box) {
+        console.log('Image or box not found yet, retrying...');
+        setTimeout(() => scaleHighlightBox(origX, origY, origWidth, origHeight), 200);
+        return;
+    }
+
+    // Wait for image to load if not loaded yet
+    if (!img.complete || img.naturalWidth === 0) {
+        console.log('Image not loaded yet, waiting...');
+        img.onload = () => scaleHighlightBox(origX, origY, origWidth, origHeight);
+        return;
+    }
 
     // Get the scale factor between original and displayed image
     const scaleX = img.width / img.naturalWidth;
@@ -267,7 +286,11 @@ function scaleHighlightBox(origX, origY, origWidth, origHeight) {
     box.style.height = scaledHeight + 'px';
     box.style.display = 'block';
 
-    console.log('Highlight box scaled:', { origX, origY, origWidth, origHeight, scaledX, scaledY, scaledWidth, scaledHeight });
+    console.log('✅ Highlight box applied:', {
+        original: { x: origX, y: origY, w: origWidth, h: origHeight },
+        scaled: { x: scaledX, y: scaledY, w: scaledWidth, h: scaledHeight },
+        imageDimensions: { natural: img.naturalWidth + 'x' + img.naturalHeight, displayed: img.width + 'x' + img.height }
+    });
 }
 
 async function toggleShowExpired() {
