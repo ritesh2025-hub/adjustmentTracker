@@ -487,6 +487,16 @@ async function markAdjustmentClaimed(adjustmentKey, amount) {
 }
 
 /**
+ * Remove claimed status from an adjustment
+ * @param {string} adjustmentKey - Unique key for the adjustment (receiptId_itemNumber_couponId)
+ */
+async function unmarkAdjustmentClaimed(adjustmentKey) {
+    const claimedAdjustments = await getSetting('claimedAdjustments', {});
+    delete claimedAdjustments[adjustmentKey];
+    await setSetting('claimedAdjustments', claimedAdjustments);
+}
+
+/**
  * Check if an adjustment has been claimed
  * @param {string} adjustmentKey - Unique key for the adjustment
  * @returns {Object|null} Claimed info or null if not claimed

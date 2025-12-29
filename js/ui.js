@@ -261,6 +261,14 @@ async function markAsClaimed(adjustmentKey, amount) {
     }
 }
 
+async function unclaimAdjustment(adjustmentKey) {
+    if (confirm('Remove this adjustment from claimed list?')) {
+        await unmarkAdjustmentClaimed(adjustmentKey);
+        showToast('Adjustment unclaimed', 'info');
+        await renderComparisons();
+    }
+}
+
 async function recalculateComparisons() {
     console.log('🔄 Recalculating price comparisons...');
     showToast('Recalculating price comparisons...', 'info');
@@ -389,6 +397,8 @@ async function renderComparisons(bustCache = false) {
         let actionButtons = '<button class="btn btn-secondary" onclick="viewCouponImage(\'' + adj.couponId + '\', \'' + adj.itemNumber + '\')">View Coupon</button>';
         if (!adj.claimed) {
             actionButtons += '<button class="btn btn-success" onclick="markAsClaimed(\'' + adj.adjustmentKey + '\', ' + adj.adjustment + ')" style="margin-left: 8px;">Mark as Claimed</button>';
+        } else {
+            actionButtons += '<button class="btn btn-cancel" onclick="unclaimAdjustment(\'' + adj.adjustmentKey + '\')" style="margin-left: 8px;">Unclaim</button>';
         }
 
         return '<div class="' + cardClass + '"><div class="comparison-header"><span class="status-indicator">' + statusIndicator + '</span><div class="comparison-item-title">Item #' + adj.itemNumber + (adj.description ? ' - ' + adj.description : '') + '</div></div><div class="comparison-details">' + priceComparisonHtml + '<div class="comparison-detail"><div class="comparison-detail-label">' + adjustmentLabelHtml + ':</div><div class="comparison-detail-value adjustment-amount">' + formatted.adjustmentFormatted + '</div><div class="comparison-detail-label">' + formatted.daysRemainingText + '</div></div>' + claimedStatusHtml + '</div><div class="card-actions" style="margin-top: 10px;">' + actionButtons + '</div></div>';
