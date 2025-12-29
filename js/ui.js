@@ -218,6 +218,7 @@ async function toggleShowExpired() {
 }
 
 async function renderComparisons() {
+    console.log('🔄 renderComparisons called - View Coupon button should appear');
     const adjustmentWindow = await getSetting('adjustmentWindow', 30);
     const showExpired = await getSetting('showExpiredAdjustments', false);
 
@@ -228,6 +229,7 @@ async function renderComparisons() {
     }
 
     const receipts = await getReceipts();
+    console.log('📝 Found receipts:', receipts.length);
 
     // Load coupons from GitHub monthly files instead of IndexedDB
     const coupons = await loadMonthlyCouponsToMemory();
@@ -243,6 +245,7 @@ async function renderComparisons() {
     }
 
     const listEl = document.getElementById('comparisons-list');
+    console.log('💰 Found adjustments:', adjustments.length);
     if (adjustments.length === 0) {
         document.getElementById('comparison-summary').style.display = 'none';
         listEl.innerHTML = '';
@@ -250,6 +253,7 @@ async function renderComparisons() {
         return;
     }
 
+    console.log('✅ Rendering', adjustments.length, 'adjustment cards with View Coupon buttons');
     document.getElementById('no-comparisons').style.display = 'none';
     document.getElementById('comparison-summary').style.display = 'block';
 
