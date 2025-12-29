@@ -476,6 +476,11 @@ header .subtitle {
     opacity: 0.7;
 }
 
+.comparison-card.claimed {
+    border-left-color: #4CAF50;
+    background: #f1f8f4;
+}
+
 .comparison-header {
     display: flex;
     align-items: center;

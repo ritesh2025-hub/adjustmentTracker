@@ -471,3 +471,44 @@ async function getStats() {
         itemCount: totalItems
     };
 }
+
+/**
+ * Mark an adjustment as claimed
+ * @param {string} adjustmentKey - Unique key for the adjustment (receiptId_itemNumber_couponId)
+ * @param {number} amount - Amount claimed
+ */
+async function markAdjustmentClaimed(adjustmentKey, amount) {
+    const claimedAdjustments = await getSetting('claimedAdjustments', {});
+    claimedAdjustments[adjustmentKey] = {
+        claimedDate: new Date().toISOString(),
+        amount: amount
+    };
+    await setSetting('claimedAdjustments', claimedAdjustments);
+}
+
+/**
+ * Check if an adjustment has been claimed
+ * @param {string} adjustmentKey - Unique key for the adjustment
+ * @returns {Object|null} Claimed info or null if not claimed
+ */
+async function isAdjustmentClaimed(adjustmentKey) {
+    const claimedAdjustments = await getSetting('claimedAdjustments', {});
+    return claimedAdjustments[adjustmentKey] || null;
+}
+
+/**
+ * Get all claimed adjustments
+ * @returns {Object} Object with claimed adjustment keys and info
+ */
+async function getAllClaimedAdjustments() {
+    return await getSetting('claimedAdjustments', {});
+}
+
+/**
+ * Calculate lifetime total saved (all claimed adjustments)
+ * @returns {number} Total amount claimed
+ */
+async function getLifetimeSavings() {
+    const claimedAdjustments = await getSetting('claimedAdjustments', {});
+    return Object.values(claimedAdjustments).reduce((sum, claim) => sum + (claim.amount || 0), 0);
+}

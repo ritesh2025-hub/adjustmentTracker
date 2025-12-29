@@ -233,6 +233,18 @@ async function toggleShowExpired() {
     await renderComparisons();
 }
 
+async function toggleClaimedFilter() {
+    await renderComparisons();
+}
+
+async function markAsClaimed(adjustmentKey, amount) {
+    if (confirm('Mark this adjustment as claimed?')) {
+        await markAdjustmentClaimed(adjustmentKey, amount);
+        showToast('Marked as claimed! 💰', 'success');
+        await renderComparisons();
+    }
+}
+
 async function recalculateComparisons() {
     console.log('🔄 Recalculating price comparisons...');
     showToast('Recalculating price comparisons...', 'info');
@@ -253,6 +265,7 @@ async function renderComparisons(bustCache = false) {
     console.log('🔄 renderComparisons called - View Coupon button should appear');
     const adjustmentWindow = await getSetting('adjustmentWindow', 30);
     const showExpired = await getSetting('showExpiredAdjustments', false);
+    const claimedFilter = document.getElementById('claimed-filter')?.value || 'unclaimed';
 
     // Update checkbox state
     const checkbox = document.getElementById('show-expired-toggle');
@@ -266,7 +279,22 @@ async function renderComparisons(bustCache = false) {
     // Load coupons from GitHub monthly files instead of IndexedDB
     const coupons = await loadMonthlyCouponsToMemory(bustCache);
 
+    // Load claimed adjustments
+    const claimedAdjustments = await getAllClaimedAdjustments();
+
     let adjustments = calculatePriceAdjustments(receipts, coupons, adjustmentWindow);
+
+    // Add claimed status to each adjustment
+    adjustments = adjustments.map(adj => {
+        const key = `${adj.receiptId}_${adj.itemNumber}_${adj.couponId}`;
+        const claimed = claimedAdjustments[key];
+        return {
+            ...adj,
+            adjustmentKey: key,
+            claimed: !!claimed,
+            claimedDate: claimed ? claimed.claimedDate : null
+        };
+    });
 
     // Sort by purchase date ascending (oldest first)
     adjustments.sort((a, b) => new Date(a.purchaseDate) - new Date(b.purchaseDate));
@@ -274,6 +302,13 @@ async function renderComparisons(bustCache = false) {
     // Filter out expired if showExpired is false
     if (!showExpired) {
         adjustments = adjustments.filter(adj => adj.eligible);
+    }
+
+    // Filter by claimed status
+    if (claimedFilter === 'claimed') {
+        adjustments = adjustments.filter(adj => adj.claimed);
+    } else if (claimedFilter === 'unclaimed') {
+        adjustments = adjustments.filter(adj => !adj.claimed);
     }
 
     const listEl = document.getElementById('comparisons-list');
@@ -293,12 +328,19 @@ async function renderComparisons(bustCache = false) {
     document.getElementById('total-adjustment').textContent = formatCurrency(stats.totalSavings);
     document.getElementById('eligible-count').textContent = stats.eligible;
 
+    // Update lifetime savings
+    const lifetimeSavings = await getLifetimeSavings();
+    document.getElementById('lifetime-savings').textContent = formatCurrency(lifetimeSavings);
+
     console.log('📊 Rendering adjustments to DOM:', adjustments.length);
     listEl.innerHTML = adjustments.map(adj => {
         const formatted = formatAdjustment(adj);
         console.log(`   Card for Item #${adj.itemNumber}: ${formatted.daysRemainingText}`);
-        const statusIndicator = adj.eligible ? '🟢' : '⚪';
-        const cardClass = adj.eligible ? 'comparison-card' : 'comparison-card expired';
+        const statusIndicator = adj.claimed ? '✅' : (adj.eligible ? '🟢' : '⚪');
+        let cardClass = adj.eligible ? 'comparison-card' : 'comparison-card expired';
+        if (adj.claimed) {
+            cardClass += ' claimed';
+        }
 
         // Build different display for discount-only vs exact price
         let priceComparisonHtml = '';
@@ -307,18 +349,33 @@ async function renderComparisons(bustCache = false) {
         if (adj.isDiscountOnly) {
             // Discount-only: Show message about checking store
             priceComparisonHtml =
+                '<div class="comparison-detail"><div class="comparison-detail-label">Purchase date:</div><div class="comparison-detail-value">' + formatted.purchaseDateFormatted + '</div></div>' +
                 '<div class="comparison-detail"><div class="comparison-detail-label">You paid:</div><div class="comparison-detail-value">' + formatted.pricePaidFormatted + '</div></div>' +
                 '<div class="comparison-detail"><div class="comparison-detail-label">Coupon discount:</div><div class="comparison-detail-value" style="color: #ffc107; font-weight: bold;">$' + adj.discountAmount.toFixed(2) + ' OFF</div></div>';
             adjustmentLabelHtml = 'Potential savings (check store for current price)';
         } else {
             // Exact price: Show normal comparison
             priceComparisonHtml =
+                '<div class="comparison-detail"><div class="comparison-detail-label">Purchase date:</div><div class="comparison-detail-value">' + formatted.purchaseDateFormatted + '</div></div>' +
                 '<div class="comparison-detail"><div class="comparison-detail-label">You paid:</div><div class="comparison-detail-value">' + formatted.pricePaidFormatted + '</div></div>' +
                 '<div class="comparison-detail"><div class="comparison-detail-label">Current price:</div><div class="comparison-detail-value">' + formatted.currentPriceFormatted + '</div></div>';
             adjustmentLabelHtml = 'Adjustment';
         }
 
-        return '<div class="' + cardClass + '"><div class="comparison-header"><span class="status-indicator">' + statusIndicator + '</span><div class="comparison-item-title">Item #' + adj.itemNumber + (adj.description ? ' - ' + adj.description : '') + '</div></div><div class="comparison-details">' + priceComparisonHtml + '<div class="comparison-detail"><div class="comparison-detail-label">' + adjustmentLabelHtml + ':</div><div class="comparison-detail-value adjustment-amount">' + formatted.adjustmentFormatted + '</div><div class="comparison-detail-label">' + formatted.daysRemainingText + '</div></div></div><div class="card-actions" style="margin-top: 10px;"><button class="btn btn-secondary" onclick="viewCouponImage(\'' + adj.couponId + '\', \'' + adj.itemNumber + '\')">View Coupon</button></div></div>';
+        // Build claimed status HTML
+        let claimedStatusHtml = '';
+        if (adj.claimed && adj.claimedDate) {
+            const claimedDateFormatted = formatDate(adj.claimedDate.split('T')[0]);
+            claimedStatusHtml = '<div class="comparison-detail" style="background: #e8f5e9; padding: 8px; border-radius: 4px; margin-top: 8px;"><div class="comparison-detail-label" style="color: #2e7d32;">✅ Claimed on:</div><div class="comparison-detail-value" style="color: #2e7d32;">' + claimedDateFormatted + '</div></div>';
+        }
+
+        // Build action buttons
+        let actionButtons = '<button class="btn btn-secondary" onclick="viewCouponImage(\'' + adj.couponId + '\', \'' + adj.itemNumber + '\')">View Coupon</button>';
+        if (!adj.claimed) {
+            actionButtons += '<button class="btn btn-success" onclick="markAsClaimed(\'' + adj.adjustmentKey + '\', ' + adj.adjustment + ')" style="margin-left: 8px;">Mark as Claimed</button>';
+        }
+
+        return '<div class="' + cardClass + '"><div class="comparison-header"><span class="status-indicator">' + statusIndicator + '</span><div class="comparison-item-title">Item #' + adj.itemNumber + (adj.description ? ' - ' + adj.description : '') + '</div></div><div class="comparison-details">' + priceComparisonHtml + '<div class="comparison-detail"><div class="comparison-detail-label">' + adjustmentLabelHtml + ':</div><div class="comparison-detail-value adjustment-amount">' + formatted.adjustmentFormatted + '</div><div class="comparison-detail-label">' + formatted.daysRemainingText + '</div></div>' + claimedStatusHtml + '</div><div class="card-actions" style="margin-top: 10px;">' + actionButtons + '</div></div>';
     }).join('');
 }
 

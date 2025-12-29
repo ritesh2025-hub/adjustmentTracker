@@ -248,6 +248,15 @@
                     </label>
                 </div>
                 <div class="filter-group">
+                    <label>
+                        <select id="claimed-filter" class="form-control" onchange="toggleClaimedFilter()">
+                            <option value="unclaimed">Unclaimed Only</option>
+                            <option value="claimed">Claimed Only</option>
+                            <option value="all">Show All</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="filter-group">
                     <button class="btn btn-secondary" onclick="recalculateComparisons()">🔄 Recalculate</button>
                 </div>
             </div>
@@ -258,6 +267,11 @@
                     <span class="summary-amount" id="total-adjustment">$0.00</span>
                 </div>
                 <p class="summary-count">(<span id="eligible-count">0</span> items eligible)</p>
+
+                <div class="summary-total" style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #ddd;">
+                    <span class="summary-label" style="color: #4CAF50;">💰 Lifetime Total Saved:</span>
+                    <span class="summary-amount" style="color: #4CAF50;" id="lifetime-savings">$0.00</span>
+                </div>
             </div>
 
             <div id="comparisons-list" class="card-list">
