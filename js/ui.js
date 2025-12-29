@@ -210,10 +210,11 @@ async function viewCouponImage(couponId, itemNumber) {
 
             // If coordinates are available, show image with highlighted region
             if (coords && coords.width > 0) {
-                content += '<div style="margin-top: 20px; position: relative; display: inline-block;">';
-                content += '<img src="' + imageUrl + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px; display: block;" alt="Coupon page" onerror="this.parentElement.innerHTML=\'<p style=color:red>Image not yet uploaded to GitHub</p>\'" id="coupon-image-with-coords">';
-                // Highlight box overlay
-                content += '<div style="position: absolute; left: ' + coords.x + 'px; top: ' + coords.y + 'px; width: ' + coords.width + 'px; height: ' + coords.height + 'px; border: 3px solid #4CAF50; box-shadow: 0 0 15px rgba(76, 175, 80, 0.6); background: rgba(76, 175, 80, 0.1); pointer-events: none;"></div>';
+                // Use percentage-based positioning so it scales with the image
+                content += '<div style="margin-top: 20px; position: relative; display: inline-block; width: 100%;">';
+                content += '<img src="' + imageUrl + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px; display: block;" alt="Coupon page" onerror="this.parentElement.innerHTML=\'<p style=color:red>Image not yet uploaded to GitHub</p>\'" id="coupon-image-with-coords" onload="scaleHighlightBox(' + coords.x + ',' + coords.y + ',' + coords.width + ',' + coords.height + ')">';
+                // Highlight box overlay - will be positioned by JavaScript after image loads
+                content += '<div id="highlight-box" style="position: absolute; border: 4px solid #4CAF50; box-shadow: 0 0 20px rgba(76, 175, 80, 0.8); background: rgba(76, 175, 80, 0.15); pointer-events: none; display: none;"></div>';
                 content += '</div>';
                 content += '<p style="margin-top: 10px; font-size: 0.9rem; color: #4CAF50;"><strong>✓ Item location highlighted in green</strong></p>';
             } else {
@@ -241,6 +242,32 @@ async function viewCouponImage(couponId, itemNumber) {
     }
 
     showModal(content);
+}
+
+function scaleHighlightBox(origX, origY, origWidth, origHeight) {
+    const img = document.getElementById('coupon-image-with-coords');
+    const box = document.getElementById('highlight-box');
+
+    if (!img || !box) return;
+
+    // Get the scale factor between original and displayed image
+    const scaleX = img.width / img.naturalWidth;
+    const scaleY = img.height / img.naturalHeight;
+
+    // Scale the coordinates
+    const scaledX = origX * scaleX;
+    const scaledY = origY * scaleY;
+    const scaledWidth = origWidth * scaleX;
+    const scaledHeight = origHeight * scaleY;
+
+    // Apply to the highlight box
+    box.style.left = scaledX + 'px';
+    box.style.top = scaledY + 'px';
+    box.style.width = scaledWidth + 'px';
+    box.style.height = scaledHeight + 'px';
+    box.style.display = 'block';
+
+    console.log('Highlight box scaled:', { origX, origY, origWidth, origHeight, scaledX, scaledY, scaledWidth, scaledHeight });
 }
 
 async function toggleShowExpired() {
