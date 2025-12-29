@@ -194,18 +194,34 @@ async function viewCouponImage(couponId, itemNumber) {
         }
     }
 
-    // Show coupon image if available
-    if (coupon.imageData) {
-        content += '<div style="margin-top: 20px;"><img src="' + coupon.imageData + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;" alt="Coupon image"></div>';
-    } else if (coupon.imageUrl) {
-        content += '<div style="margin-top: 20px;"><img src="' + coupon.imageUrl + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;" alt="Coupon image"></div>';
-    } else {
-        // No image available - show link to Costco coupon book
-        const month = coupon.validUntil.substring(0, 7); // Get YYYY-MM
-        content += '<div style="margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 4px;">';
-        content += '<p><strong>💡 Tip:</strong> View the full Costco coupon book online to see this item.</p>';
-        content += '<p>Valid period: ' + formatDate(coupon.validFrom) + ' - ' + formatDate(coupon.validUntil) + '</p>';
-        content += '</div>';
+    // Load item-to-page mapping and get specific page image
+    try {
+        const response = await fetch('coupons/item-to-page-mapping.json');
+        const mapping = await response.json();
+        const month = coupon.validUntil.substring(0, 7); // Get YYYY-MM format
+        const pageFilename = mapping[month] && mapping[month][itemNumber];
+
+        if (pageFilename) {
+            const imageUrl = 'https://raw.githubusercontent.com/ritesh2025-hub/adjustmentTracker/main/coupons/images/' + month + '/' + pageFilename;
+            content += '<div style="margin-top: 20px;"><img src="' + imageUrl + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;" alt="Coupon page" onerror="this.parentElement.innerHTML=\'<p style=color:red>Image not yet uploaded to GitHub</p>\'"></div>';
+        } else if (coupon.imageData) {
+            content += '<div style="margin-top: 20px;"><img src="' + coupon.imageData + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;" alt="Coupon image"></div>';
+        } else if (coupon.imageUrl) {
+            content += '<div style="margin-top: 20px;"><img src="' + coupon.imageUrl + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;" alt="Coupon image"></div>';
+        } else {
+            // No image available
+            content += '<div style="margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 4px;">';
+            content += '<p><strong>💡 Tip:</strong> View the full Costco coupon book online to see this item.</p>';
+            content += '<p>Valid period: ' + formatDate(coupon.validFrom) + ' - ' + formatDate(coupon.validUntil) + '</p>';
+            content += '</div>';
+        }
+    } catch (error) {
+        console.error('Could not load item-to-page mapping:', error);
+        // Fallback to old behavior
+        if (coupon.imageData || coupon.imageUrl) {
+            const imgSrc = coupon.imageData || coupon.imageUrl;
+            content += '<div style="margin-top: 20px;"><img src="' + imgSrc + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;" alt="Coupon image"></div>';
+        }
     }
 
     showModal(content);
