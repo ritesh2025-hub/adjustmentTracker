@@ -2,11 +2,13 @@
   "month": "2026-01",
   "startDate": "2025-12-22",
   "endDate": "2026-01-19",
+  "imageBaseUrl": "https://raw.githubusercontent.com/ritesh2025-hub/adjustmentTracker/main/coupons/images/2026-01",
   "coupons": [
     {
       "id": "coupon_2026_01_001",
       "validFrom": "2025-12-22",
       "validUntil": "2026-01-19",
+      "imageUrl": "https://raw.githubusercontent.com/ritesh2025-hub/adjustmentTracker/main/coupons/images/2026-01/costco-coupon-book-jan-2026.jpg",
       "items": [
         {
           "itemNumber": "1243880",

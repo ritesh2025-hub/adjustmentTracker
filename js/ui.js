@@ -159,6 +159,58 @@ async function deleteCouponConfirm(couponId) {
     }
 }
 
+async function viewCouponImage(couponId, itemNumber) {
+    // First try to get coupon from IndexedDB (locally uploaded coupons)
+    let coupon = await getCouponById(couponId);
+
+    // If not found locally, check monthly coupons loaded from GitHub
+    if (!coupon) {
+        const monthlyCoupons = await loadMonthlyCouponsToMemory();
+        coupon = monthlyCoupons.find(c => c.id === couponId);
+    }
+
+    if (!coupon) {
+        showToast('Coupon not found', 'error');
+        return;
+    }
+
+    // Find the specific item
+    const item = coupon.items.find(i => i.itemNumber === itemNumber);
+
+    // Build modal content
+    let content = '<h2>Coupon Details</h2>';
+    content += '<p><strong>Item #' + itemNumber + '</strong></p>';
+    if (item && item.description) {
+        content += '<p>' + item.description + '</p>';
+    }
+    content += '<p><strong>Valid:</strong> ' + formatDate(coupon.validFrom) + ' - ' + formatDate(coupon.validUntil) + '</p>';
+
+    if (item) {
+        if (item.salePrice && item.salePrice > 0) {
+            content += '<p><strong>Sale Price:</strong> $' + item.salePrice.toFixed(2) + '</p>';
+        }
+        if (item.discount && item.discount > 0) {
+            content += '<p><strong>Discount:</strong> $' + item.discount.toFixed(2) + ' OFF</p>';
+        }
+    }
+
+    // Show coupon image if available
+    if (coupon.imageData) {
+        content += '<div style="margin-top: 20px;"><img src="' + coupon.imageData + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;" alt="Coupon image"></div>';
+    } else if (coupon.imageUrl) {
+        content += '<div style="margin-top: 20px;"><img src="' + coupon.imageUrl + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;" alt="Coupon image"></div>';
+    } else {
+        // No image available - show link to Costco coupon book
+        const month = coupon.validUntil.substring(0, 7); // Get YYYY-MM
+        content += '<div style="margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 4px;">';
+        content += '<p><strong>💡 Tip:</strong> View the full Costco coupon book online to see this item.</p>';
+        content += '<p>Valid period: ' + formatDate(coupon.validFrom) + ' - ' + formatDate(coupon.validUntil) + '</p>';
+        content += '</div>';
+    }
+
+    showModal(content);
+}
+
 async function toggleShowExpired() {
     const checkbox = document.getElementById('show-expired-toggle');
     await setSetting('showExpiredAdjustments', checkbox.checked);
@@ -228,7 +280,7 @@ async function renderComparisons() {
             adjustmentLabelHtml = 'Adjustment';
         }
 
-        return '<div class="' + cardClass + '"><div class="comparison-header"><span class="status-indicator">' + statusIndicator + '</span><div class="comparison-item-title">Item #' + adj.itemNumber + (adj.description ? ' - ' + adj.description : '') + '</div></div><div class="comparison-details">' + priceComparisonHtml + '<div class="comparison-detail"><div class="comparison-detail-label">' + adjustmentLabelHtml + ':</div><div class="comparison-detail-value adjustment-amount">' + formatted.adjustmentFormatted + '</div><div class="comparison-detail-label">' + formatted.daysRemainingText + '</div></div></div></div>';
+        return '<div class="' + cardClass + '"><div class="comparison-header"><span class="status-indicator">' + statusIndicator + '</span><div class="comparison-item-title">Item #' + adj.itemNumber + (adj.description ? ' - ' + adj.description : '') + '</div></div><div class="comparison-details">' + priceComparisonHtml + '<div class="comparison-detail"><div class="comparison-detail-label">' + adjustmentLabelHtml + ':</div><div class="comparison-detail-value adjustment-amount">' + formatted.adjustmentFormatted + '</div><div class="comparison-detail-label">' + formatted.daysRemainingText + '</div></div></div><div class="card-actions" style="margin-top: 10px;"><button class="btn btn-secondary" onclick="viewCouponImage(\'' + adj.couponId + '\', \'' + adj.itemNumber + '\')">View Coupon</button></div></div>';
     }).join('');
 }
 
