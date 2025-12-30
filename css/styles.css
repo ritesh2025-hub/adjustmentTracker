@@ -336,6 +336,11 @@ header .subtitle {
     background: #d32f2f;
 }
 
+.btn.active {
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.3);
+    transform: scale(0.98);
+}
+
 /* Preview Section */
 .preview-section {
     margin-top: 16px;

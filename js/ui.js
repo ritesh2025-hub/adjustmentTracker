@@ -209,20 +209,26 @@ async function viewCouponImage(couponId, itemNumber) {
 
             const imageUrl = 'https://raw.githubusercontent.com/ritesh2025-hub/adjustmentTracker/main/coupons/images/' + month + '/' + pageFilename;
 
-            // If coordinates are available, show zoomed-in cropped section
-            if (coords && coords.width > 0) {
-                // Show both full image (small) and zoomed section (large)
-                content += '<div style="margin-top: 20px;">';
-                content += '<p style="margin-bottom: 10px; font-size: 0.9rem; color: #4CAF50;"><strong>🔍 Zoomed into item section:</strong></p>';
-                // Hidden full image for processing
-                content += '<img src="' + imageUrl + '" style="display: none;" alt="Coupon page" id="coupon-image-full" crossorigin="anonymous">';
-                // Canvas for cropped/zoomed section
-                content += '<canvas id="zoomed-canvas" style="max-width: 100%; border: 3px solid #4CAF50; border-radius: 8px; box-shadow: 0 4px 20px rgba(76, 175, 80, 0.4);"></canvas>';
-                content += '</div>';
-            } else {
-                // No coordinates, show full image
-                content += '<div style="margin-top: 20px;"><img src="' + imageUrl + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;" alt="Coupon page" onerror="this.parentElement.innerHTML=\'<p style=color:red>Image not yet uploaded to GitHub</p>\'"></div>';
-            }
+            // Always show with zoom controls (will use OCR to find item)
+            content += '<div style="margin-top: 20px;">';
+            // View toggle buttons
+            content += '<div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">';
+            content += '<button onclick="showZoomedView()" class="btn btn-primary" id="zoom-btn">🔍 Zoomed View</button>';
+            content += '<button onclick="showFullView()" class="btn btn-secondary" id="full-btn">📄 Full Page</button>';
+            content += '<button onclick="toggleHighlight()" class="btn btn-cancel" id="highlight-toggle-btn">Hide Highlight</button>';
+            content += '</div>';
+            // Status message
+            content += '<p id="ocr-status" style="margin-bottom: 10px; color: #2196F3; font-size: 0.9rem;">🔍 Searching for item #' + itemNumber + ' on page...</p>';
+            // Hidden full image for processing
+            content += '<img src="' + imageUrl + '" style="display: none;" alt="Coupon page" id="coupon-image-full" crossorigin="anonymous">';
+            // Canvas for zoomed section
+            content += '<canvas id="zoomed-canvas" style="max-width: 100%; border: 2px solid #ddd; border-radius: 8px; display: none;"></canvas>';
+            // Full page view
+            content += '<img src="' + imageUrl + '" id="full-page-view" style="max-width: 100%; border: 2px solid #ddd; border-radius: 8px; display: none;" alt="Coupon page">';
+            content += '</div>';
+
+            // Store item number for OCR search
+            window.currentSearchItemNumber = itemNumber;
         } else if (coupon.imageData) {
             content += '<div style="margin-top: 20px;"><img src="' + coupon.imageData + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;" alt="Coupon image"></div>';
         } else if (coupon.imageUrl) {
@@ -245,72 +251,189 @@ async function viewCouponImage(couponId, itemNumber) {
 
     showModal(content);
 
-    // If coordinates exist, crop and zoom to that section
-    if (itemData && typeof itemData === 'object' && itemData.coords && itemData.coords.width > 0) {
+    // Use OCR to find item number on page
+    if (itemData && window.currentSearchItemNumber) {
+        window.highlightEnabled = true;
+
         setTimeout(() => {
-            cropAndZoomToSection(itemData.coords.x, itemData.coords.y, itemData.coords.width, itemData.coords.height);
+            searchItemWithOCR(window.currentSearchItemNumber);
         }, 100);
     }
 }
 
-function cropAndZoomToSection(origX, origY, origWidth, origHeight) {
+// Global variables for view state
+let currentItemCoords = null;
+let highlightEnabled = true;
+
+async function searchItemWithOCR(itemNumber) {
+    const statusEl = document.getElementById('ocr-status');
+    const img = document.getElementById('coupon-image-full');
+
+    if (!img) {
+        statusEl.textContent = '❌ Error: Image not found';
+        statusEl.style.color = '#f44336';
+        return;
+    }
+
+    // Wait for image to load
+    if (!img.complete || img.naturalWidth === 0) {
+        img.onload = () => searchItemWithOCR(itemNumber);
+        return;
+    }
+
+    try {
+        statusEl.textContent = '🔍 Searching for item #' + itemNumber + '...';
+
+        // Initialize Tesseract worker
+        const worker = await Tesseract.createWorker();
+        await worker.loadLanguage('eng');
+        await worker.initialize('eng');
+        await worker.setParameters({
+            tessedit_char_whitelist: '0123456789',
+        });
+
+        // Run OCR on full image
+        const { data } = await worker.recognize(img);
+
+        // Find the item number in OCR results
+        let found = null;
+        for (const word of data.words) {
+            if (word.text.includes(itemNumber) || itemNumber.includes(word.text)) {
+                found = word.bbox;
+                break;
+            }
+        }
+
+        await worker.terminate();
+
+        if (found) {
+            // Found the item! Create a 2"x2" box around it (roughly 200x200 pixels at typical DPI)
+            const boxSize = 250; // 2-3 inches at typical screen DPI
+            const centerX = found.x0 + (found.x1 - found.x0) / 2;
+            const centerY = found.y0 + (found.y1 - found.y0) / 2;
+
+            window.currentItemCoords = {
+                x: Math.max(0, centerX - boxSize / 2),
+                y: Math.max(0, centerY - boxSize / 2),
+                width: boxSize,
+                height: boxSize
+            };
+
+            statusEl.textContent = '✅ Found item #' + itemNumber + '!';
+            statusEl.style.color = '#4CAF50';
+
+            console.log('✅ Found item via OCR:', {
+                itemNumber,
+                bbox: found,
+                center: { x: centerX, y: centerY },
+                cropBox: window.currentItemCoords
+            });
+
+            showZoomedView();
+        } else {
+            statusEl.textContent = '⚠️ Item #' + itemNumber + ' not found on page';
+            statusEl.style.color = '#ff9800';
+            showFullView();
+        }
+    } catch (error) {
+        console.error('OCR search failed:', error);
+        statusEl.textContent = '❌ Search failed - showing full page';
+        statusEl.style.color = '#f44336';
+        showFullView();
+    }
+}
+
+function showZoomedView() {
+    if (!window.currentItemCoords) return;
+
+    document.getElementById('zoomed-canvas').style.display = 'block';
+    document.getElementById('full-page-view').style.display = 'none';
+    document.getElementById('zoom-btn').classList.add('active');
+    document.getElementById('full-btn').classList.remove('active');
+
+    const coords = window.currentItemCoords;
+    cropAndZoomToSection(coords.x, coords.y, coords.width, coords.height, window.highlightEnabled);
+}
+
+function showFullView() {
+    document.getElementById('zoomed-canvas').style.display = 'none';
+    document.getElementById('full-page-view').style.display = 'block';
+    document.getElementById('zoom-btn').classList.remove('active');
+    document.getElementById('full-btn').classList.add('active');
+}
+
+function toggleHighlight() {
+    window.highlightEnabled = !window.highlightEnabled;
+    const btn = document.getElementById('highlight-toggle-btn');
+    btn.textContent = window.highlightEnabled ? 'Hide Highlight' : 'Show Highlight';
+
+    // Redraw zoomed view if it's active
+    if (document.getElementById('zoomed-canvas').style.display === 'block') {
+        showZoomedView();
+    }
+}
+
+function cropAndZoomToSection(origX, origY, origWidth, origHeight, showHighlight = true) {
     const img = document.getElementById('coupon-image-full');
     const canvas = document.getElementById('zoomed-canvas');
 
     if (!img || !canvas) {
         console.log('Image or canvas not found yet, retrying...');
-        setTimeout(() => cropAndZoomToSection(origX, origY, origWidth, origHeight), 200);
+        setTimeout(() => cropAndZoomToSection(origX, origY, origWidth, origHeight, showHighlight), 200);
         return;
     }
 
     // Wait for image to load if not loaded yet
     if (!img.complete || img.naturalWidth === 0) {
         console.log('Image not loaded yet, waiting...');
-        img.onload = () => cropAndZoomToSection(origX, origY, origWidth, origHeight);
+        img.onload = () => cropAndZoomToSection(origX, origY, origWidth, origHeight, showHighlight);
         return;
     }
 
     const ctx = canvas.getContext('2d');
 
-    // Add 50% padding around the item for context
-    const paddingX = origWidth * 0.5;
-    const paddingY = origHeight * 0.5;
+    // Add 150% padding around the item for more context (less aggressive zoom)
+    const paddingX = origWidth * 1.5;
+    const paddingY = origHeight * 1.5;
     const cropX = Math.max(0, origX - paddingX);
     const cropY = Math.max(0, origY - paddingY);
     const cropWidth = Math.min(origWidth + (paddingX * 2), img.naturalWidth - cropX);
     const cropHeight = Math.min(origHeight + (paddingY * 2), img.naturalHeight - cropY);
 
-    // Set canvas size to maintain aspect ratio, max 800px wide
-    const maxWidth = 800;
-    const scale = Math.min(maxWidth / cropWidth, 2); // Max 2x zoom
+    // Set canvas size - less aggressive scaling
+    const maxWidth = 900;
+    const scale = Math.min(maxWidth / cropWidth, 1.3); // Max 1.3x zoom (less aggressive)
     canvas.width = cropWidth * scale;
     canvas.height = cropHeight * scale;
 
-    // Draw the cropped section enlarged
+    // Draw the cropped section
     ctx.drawImage(
         img,
         cropX, cropY, cropWidth, cropHeight,  // Source crop area
         0, 0, canvas.width, canvas.height      // Destination (full canvas)
     );
 
-    // Draw green highlight overlay on the item area within the crop
-    const highlightX = (origX - cropX) * scale;
-    const highlightY = (origY - cropY) * scale;
-    const highlightW = origWidth * scale;
-    const highlightH = origHeight * scale;
+    // Draw highlight if enabled
+    if (showHighlight) {
+        const highlightX = (origX - cropX) * scale;
+        const highlightY = (origY - cropY) * scale;
+        const highlightW = origWidth * scale;
+        const highlightH = origHeight * scale;
 
-    ctx.fillStyle = 'rgba(76, 175, 80, 0.25)';
-    ctx.fillRect(highlightX, highlightY, highlightW, highlightH);
+        ctx.fillStyle = 'rgba(76, 175, 80, 0.25)';
+        ctx.fillRect(highlightX, highlightY, highlightW, highlightH);
 
-    ctx.strokeStyle = 'rgba(76, 175, 80, 0.9)';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(highlightX, highlightY, highlightW, highlightH);
+        ctx.strokeStyle = 'rgba(76, 175, 80, 0.9)';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(highlightX, highlightY, highlightW, highlightH);
+    }
 
-    console.log('✅ Zoomed and cropped section:', {
+    console.log('✅ Zoomed view rendered:', {
         original: { x: origX, y: origY, w: origWidth, h: origHeight },
         crop: { x: cropX, y: cropY, w: cropWidth, h: cropHeight },
         canvas: { w: canvas.width, h: canvas.height },
-        zoom: scale.toFixed(2) + 'x'
+        zoom: scale.toFixed(2) + 'x',
+        highlight: showHighlight
     });
 }
 
