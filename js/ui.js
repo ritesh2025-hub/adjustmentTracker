@@ -214,8 +214,8 @@ async function viewCouponImage(couponId, itemNumber) {
                 // Use percentage-based positioning so it scales with the image
                 content += '<div style="margin-top: 20px; position: relative; display: inline-block; width: 100%;">';
                 content += '<img src="' + imageUrl + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px; display: block;" alt="Coupon page" onerror="this.parentElement.innerHTML=\'<p style=color:red>Image not yet uploaded to GitHub</p>\'" id="coupon-image-with-coords">';
-                // Highlight box overlay - will be positioned by JavaScript after image loads
-                content += '<div id="highlight-box" style="position: absolute; border: 4px solid #4CAF50; box-shadow: 0 0 20px rgba(76, 175, 80, 0.8); background: rgba(76, 175, 80, 0.15); pointer-events: none; display: none;"></div>';
+                // Highlight box overlay - transparent green overlay with glow
+                content += '<div id="highlight-box" style="position: absolute; background: rgba(76, 175, 80, 0.25); box-shadow: inset 0 0 0 3px rgba(76, 175, 80, 0.8), 0 0 30px rgba(76, 175, 80, 0.6); pointer-events: none; display: none; border-radius: 8px;"></div>';
                 content += '</div>';
                 content += '<p style="margin-top: 10px; font-size: 0.9rem; color: #4CAF50;"><strong>✓ Item location highlighted in green</strong></p>';
             } else {
@@ -273,11 +273,18 @@ function scaleHighlightBox(origX, origY, origWidth, origHeight) {
     const scaleX = img.width / img.naturalWidth;
     const scaleY = img.height / img.naturalHeight;
 
-    // Scale the coordinates
-    const scaledX = origX * scaleX;
-    const scaledY = origY * scaleY;
-    const scaledWidth = origWidth * scaleX;
-    const scaledHeight = origHeight * scaleY;
+    // Add padding to make highlight bigger (10 pixels on each side in original dimensions)
+    const padding = 10;
+    const paddedX = Math.max(0, origX - padding);
+    const paddedY = Math.max(0, origY - padding);
+    const paddedWidth = origWidth + (padding * 2);
+    const paddedHeight = origHeight + (padding * 2);
+
+    // Scale the padded coordinates
+    const scaledX = paddedX * scaleX;
+    const scaledY = paddedY * scaleY;
+    const scaledWidth = paddedWidth * scaleX;
+    const scaledHeight = paddedHeight * scaleY;
 
     // Apply to the highlight box
     box.style.left = scaledX + 'px';
