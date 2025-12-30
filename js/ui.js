@@ -392,35 +392,34 @@ function cropAndZoomToSection(origX, origY, origWidth, origHeight, showHighlight
 
     const ctx = canvas.getContext('2d');
 
-    // Add 150% padding around the item for more context (less aggressive zoom)
-    const paddingX = origWidth * 1.5;
-    const paddingY = origHeight * 1.5;
-    const cropX = Math.max(0, origX - paddingX);
-    const cropY = Math.max(0, origY - paddingY);
-    const cropWidth = Math.min(origWidth + (paddingX * 2), img.naturalWidth - cropX);
-    const cropHeight = Math.min(origHeight + (paddingY * 2), img.naturalHeight - cropY);
+    // Crop to the exact box (2"x2" around item number)
+    const cropX = Math.max(0, origX);
+    const cropY = Math.max(0, origY);
+    const cropWidth = Math.min(origWidth, img.naturalWidth - cropX);
+    const cropHeight = Math.min(origHeight, img.naturalHeight - cropY);
 
-    // Set canvas size - less aggressive scaling
-    const maxWidth = 900;
-    const scale = Math.min(maxWidth / cropWidth, 1.3); // Max 1.3x zoom (less aggressive)
+    // Scale to reasonable viewing size (max 600px wide for 2"x2" section)
+    const maxWidth = 600;
+    const scale = maxWidth / cropWidth;
     canvas.width = cropWidth * scale;
     canvas.height = cropHeight * scale;
 
-    // Draw the cropped section
+    // Draw the cropped 2"x2" section
     ctx.drawImage(
         img,
-        cropX, cropY, cropWidth, cropHeight,  // Source crop area
-        0, 0, canvas.width, canvas.height      // Destination (full canvas)
+        cropX, cropY, cropWidth, cropHeight,  // Source crop area (exact 2"x2")
+        0, 0, canvas.width, canvas.height      // Destination (scaled up)
     );
 
-    // Draw highlight if enabled
+    // Draw highlight if enabled - highlight the center where item number was found
     if (showHighlight) {
-        const highlightX = (origX - cropX) * scale;
-        const highlightY = (origY - cropY) * scale;
-        const highlightW = origWidth * scale;
-        const highlightH = origHeight * scale;
+        const centerHighlightSize = Math.min(cropWidth, cropHeight) * 0.6; // Highlight center 60%
+        const highlightX = (cropWidth - centerHighlightSize) / 2 * scale;
+        const highlightY = (cropHeight - centerHighlightSize) / 2 * scale;
+        const highlightW = centerHighlightSize * scale;
+        const highlightH = centerHighlightSize * scale;
 
-        ctx.fillStyle = 'rgba(76, 175, 80, 0.25)';
+        ctx.fillStyle = 'rgba(76, 175, 80, 0.2)';
         ctx.fillRect(highlightX, highlightY, highlightW, highlightH);
 
         ctx.strokeStyle = 'rgba(76, 175, 80, 0.9)';
@@ -428,8 +427,7 @@ function cropAndZoomToSection(origX, origY, origWidth, origHeight, showHighlight
         ctx.strokeRect(highlightX, highlightY, highlightW, highlightH);
     }
 
-    console.log('✅ Zoomed view rendered:', {
-        original: { x: origX, y: origY, w: origWidth, h: origHeight },
+    console.log('✅ Zoomed view rendered (2"x2" section):', {
         crop: { x: cropX, y: cropY, w: cropWidth, h: cropHeight },
         canvas: { w: canvas.width, h: canvas.height },
         zoom: scale.toFixed(2) + 'x',
