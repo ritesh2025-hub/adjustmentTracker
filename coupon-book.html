@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coupon Book Browser</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .book-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 20px;
+            border-radius: var(--radius);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .book-filters {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+            background: white;
+            padding: 15px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-group label {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--gray-700);
+        }
+
+        .pages-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+
+        @media (min-width: 1200px) {
+            .pages-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .page-card {
+            background: white;
+            border-radius: var(--radius);
+            padding: 20px;
+            box-shadow: var(--shadow-md);
+            transition: var(--transition);
+        }
+
+        .page-card:hover {
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-2px);
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        .page-number {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .page-info {
+            font-size: 0.85rem;
+            color: var(--gray-700);
+        }
+
+        .page-image-container {
+            position: relative;
+            margin-bottom: 15px;
+            border-radius: var(--radius);
+            overflow: hidden;
+            border: 2px solid var(--gray-300);
+        }
+
+        .page-image {
+            width: 100%;
+            display: block;
+            cursor: zoom-in;
+        }
+
+        .page-items {
+            margin-top: 15px;
+        }
+
+        .items-header {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--gray-700);
+            margin-bottom: 10px;
+        }
+
+        .item-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .item-tag {
+            background: var(--gray-100);
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            color: var(--gray-700);
+            border: 1px solid var(--gray-300);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.1rem;
+            color: var(--gray-700);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .empty-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: white;
+            color: var(--gray-700);
+            border: 2px solid var(--gray-300);
+            border-radius: var(--radius-sm);
+            text-decoration: none;
+            font-weight: 600;
+            transition: var(--transition);
+            margin-bottom: 20px;
+        }
+
+        .back-button:hover {
+            background: var(--gray-100);
+            border-color: var(--gray-700);
+        }
+
+        .stats-bar {
+            background: white;
+            padding: 15px;
+            border-radius: var(--radius);
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--gray-700);
+        }
+
+        /* Modal for full-size image */
+        .image-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            padding: 20px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-modal.active {
+            display: flex;
+        }
+
+        .modal-image {
+            max-width: 95%;
+            max-height: 95vh;
+            border-radius: var(--radius);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            font-size: 3rem;
+            color: white;
+            cursor: pointer;
+            z-index: 1001;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-button">← Back to App</a>
+
+        <div class="book-header">
+            <h1>📖 Coupon Book Browser</h1>
+            <p>Browse all Costco coupon pages by month</p>
+        </div>
+
+        <div class="book-filters">
+            <div class="filter-group">
+                <label for="month-select">Select Month:</label>
+                <select id="month-select" class="form-control">
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>Quick Actions:</label>
+                <button onclick="scrollToPage(1)" class="btn btn-secondary" style="font-size: 0.85rem;">Jump to Page 1</button>
+            </div>
+        </div>
+
+        <div id="stats-bar" class="stats-bar" style="display: none;">
+            <div class="stat-item">
+                <div class="stat-value" id="total-pages">0</div>
+                <div class="stat-label">Total Pages</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="total-items">0</div>
+                <div class="stat-label">Total Items</div>
+            </div>
+        </div>
+
+        <div id="loading" class="loading">
+            Loading coupon book...
+        </div>
+
+        <div id="pages-container" class="pages-grid" style="display: none;">
+            <!-- Pages will be inserted here -->
+        </div>
+
+        <div id="empty-state" class="empty-state" style="display: none;">
+            <span class="empty-icon">📭</span>
+            <p style="font-size: 1.2rem; font-weight: 600;">No coupon pages found</p>
+            <p style="color: var(--gray-700);">Select a different month or check back later.</p>
+        </div>
+    </div>
+
+    <!-- Image zoom modal -->
+    <div id="image-modal" class="image-modal" onclick="closeImageModal()">
+        <span class="modal-close">&times;</span>
+        <img id="modal-image" class="modal-image" alt="Full size coupon page">
+    </div>
+
+    <script>
+        let currentMonth = '';
+        let allPages = {};
+        let itemMapping = {};
+
+        // Get current month in YYYY-MM format
+        function getCurrentMonth() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            return `${year}-${month}`;
+        }
+
+        // Load available months and mapping
+        async function loadCouponData() {
+            try {
+                // Load item-to-page mapping
+                const response = await fetch('coupons/item-to-page-mapping.json');
+                itemMapping = await response.json();
+
+                // Get available months
+                const months = Object.keys(itemMapping).sort().reverse();
+
+                // Populate month dropdown
+                const select = document.getElementById('month-select');
+                select.innerHTML = '';
+
+                months.forEach(month => {
+                    const option = document.createElement('option');
+                    option.value = month;
+                    option.textContent = formatMonthName(month);
+                    select.appendChild(option);
+                });
+
+                // Set default to current month or first available
+                currentMonth = getCurrentMonth();
+                if (!months.includes(currentMonth)) {
+                    currentMonth = months[0];
+                }
+                select.value = currentMonth;
+
+                // Add change listener
+                select.addEventListener('change', (e) => {
+                    currentMonth = e.target.value;
+                    loadPages();
+                });
+
+                // Load pages for default month
+                loadPages();
+            } catch (error) {
+                console.error('Error loading coupon data:', error);
+                showError('Failed to load coupon data');
+            }
+        }
+
+        function formatMonthName(monthStr) {
+            const [year, month] = monthStr.split('-');
+            const date = new Date(year, parseInt(month) - 1, 1);
+            return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        }
+
+        function loadPages() {
+            const loading = document.getElementById('loading');
+            const container = document.getElementById('pages-container');
+            const empty = document.getElementById('empty-state');
+            const stats = document.getElementById('stats-bar');
+
+            loading.style.display = 'block';
+            container.style.display = 'none';
+            empty.style.display = 'none';
+            stats.style.display = 'none';
+
+            // Get all items for this month
+            const monthData = itemMapping[currentMonth];
+
+            if (!monthData || Object.keys(monthData).length === 0) {
+                loading.style.display = 'none';
+                empty.style.display = 'block';
+                return;
+            }
+
+            // Group items by page
+            const pageGroups = {};
+            for (const [itemNumber, data] of Object.entries(monthData)) {
+                const pageName = typeof data === 'string' ? data : data.page;
+                if (!pageGroups[pageName]) {
+                    pageGroups[pageName] = [];
+                }
+                pageGroups[pageName].push(itemNumber);
+            }
+
+            // Extract page numbers and sort
+            const pages = Object.keys(pageGroups).sort((a, b) => {
+                const numA = extractPageNumber(a);
+                const numB = extractPageNumber(b);
+                return numA - numB;
+            });
+
+            // Update stats
+            document.getElementById('total-pages').textContent = pages.length;
+            document.getElementById('total-items').textContent = Object.keys(monthData).length;
+            stats.style.display = 'flex';
+
+            // Render pages
+            container.innerHTML = pages.map(pageName => {
+                const pageNum = extractPageNumber(pageName);
+                const items = pageGroups[pageName];
+                const imageUrl = `https://raw.githubusercontent.com/ritesh2025-hub/adjustmentTracker/main/coupons/images/${currentMonth}/${pageName}`;
+
+                return `
+                    <div class="page-card" id="page-${pageNum}">
+                        <div class="page-header">
+                            <div class="page-number">Page ${pageNum}</div>
+                            <div class="page-info">${items.length} items</div>
+                        </div>
+
+                        <div class="page-image-container">
+                            <img src="${imageUrl}"
+                                 alt="Page ${pageNum}"
+                                 class="page-image"
+                                 onclick="openImageModal('${imageUrl}')"
+                                 onerror="this.parentElement.innerHTML='<p style=\\'padding:40px;text-align:center;color:#f44336\\'>Image not available</p>'">
+                        </div>
+
+                        <div class="page-items">
+                            <div class="items-header">Items on this page:</div>
+                            <div class="item-list">
+                                ${items.sort().map(item => `<span class="item-tag">#${item}</span>`).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            loading.style.display = 'none';
+            container.style.display = 'grid';
+        }
+
+        function extractPageNumber(filename) {
+            const match = filename.match(/Page[_-]?(\d+)/i);
+            return match ? parseInt(match[1]) : 0;
+        }
+
+        function scrollToPage(pageNum) {
+            const pageCard = document.getElementById(`page-${pageNum}`);
+            if (pageCard) {
+                pageCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+
+        function openImageModal(imageUrl) {
+            const modal = document.getElementById('image-modal');
+            const img = document.getElementById('modal-image');
+            img.src = imageUrl;
+            modal.classList.add('active');
+        }
+
+        function closeImageModal() {
+            const modal = document.getElementById('image-modal');
+            modal.classList.remove('active');
+        }
+
+        function showError(message) {
+            document.getElementById('loading').innerHTML =
+                `<div style="color: #f44336; font-weight: 600;">${message}</div>`;
+        }
+
+        // Initialize
+        loadCouponData();
+    </script>
+</body>
+</html>
