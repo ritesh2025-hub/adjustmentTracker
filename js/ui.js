@@ -209,15 +209,16 @@ async function viewCouponImage(couponId, itemNumber) {
 
             const imageUrl = 'https://raw.githubusercontent.com/ritesh2025-hub/adjustmentTracker/main/coupons/images/' + month + '/' + pageFilename;
 
-            // If coordinates are available, show image with highlighted region
+            // If coordinates are available, show zoomed-in cropped section
             if (coords && coords.width > 0) {
-                // Use percentage-based positioning so it scales with the image
-                content += '<div style="margin-top: 20px; position: relative; display: inline-block; width: 100%;">';
-                content += '<img src="' + imageUrl + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px; display: block;" alt="Coupon page" onerror="this.parentElement.innerHTML=\'<p style=color:red>Image not yet uploaded to GitHub</p>\'" id="coupon-image-with-coords">';
-                // Highlight box overlay - transparent green overlay with outer glow only (no border)
-                content += '<div id="highlight-box" style="position: absolute; background: rgba(76, 175, 80, 0.3); box-shadow: 0 0 30px rgba(76, 175, 80, 0.7); pointer-events: none; display: none; border-radius: 8px;"></div>';
+                // Show both full image (small) and zoomed section (large)
+                content += '<div style="margin-top: 20px;">';
+                content += '<p style="margin-bottom: 10px; font-size: 0.9rem; color: #4CAF50;"><strong>🔍 Zoomed into item section:</strong></p>';
+                // Hidden full image for processing
+                content += '<img src="' + imageUrl + '" style="display: none;" alt="Coupon page" id="coupon-image-full" crossorigin="anonymous">';
+                // Canvas for cropped/zoomed section
+                content += '<canvas id="zoomed-canvas" style="max-width: 100%; border: 3px solid #4CAF50; border-radius: 8px; box-shadow: 0 4px 20px rgba(76, 175, 80, 0.4);"></canvas>';
                 content += '</div>';
-                content += '<p style="margin-top: 10px; font-size: 0.9rem; color: #4CAF50;"><strong>✓ Item location highlighted in green</strong></p>';
             } else {
                 // No coordinates, show full image
                 content += '<div style="margin-top: 20px;"><img src="' + imageUrl + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;" alt="Coupon page" onerror="this.parentElement.innerHTML=\'<p style=color:red>Image not yet uploaded to GitHub</p>\'"></div>';
@@ -244,60 +245,72 @@ async function viewCouponImage(couponId, itemNumber) {
 
     showModal(content);
 
-    // If coordinates exist, set up the highlight box after modal opens
+    // If coordinates exist, crop and zoom to that section
     if (itemData && typeof itemData === 'object' && itemData.coords && itemData.coords.width > 0) {
         setTimeout(() => {
-            scaleHighlightBox(itemData.coords.x, itemData.coords.y, itemData.coords.width, itemData.coords.height);
+            cropAndZoomToSection(itemData.coords.x, itemData.coords.y, itemData.coords.width, itemData.coords.height);
         }, 100);
     }
 }
 
-function scaleHighlightBox(origX, origY, origWidth, origHeight) {
-    const img = document.getElementById('coupon-image-with-coords');
-    const box = document.getElementById('highlight-box');
+function cropAndZoomToSection(origX, origY, origWidth, origHeight) {
+    const img = document.getElementById('coupon-image-full');
+    const canvas = document.getElementById('zoomed-canvas');
 
-    if (!img || !box) {
-        console.log('Image or box not found yet, retrying...');
-        setTimeout(() => scaleHighlightBox(origX, origY, origWidth, origHeight), 200);
+    if (!img || !canvas) {
+        console.log('Image or canvas not found yet, retrying...');
+        setTimeout(() => cropAndZoomToSection(origX, origY, origWidth, origHeight), 200);
         return;
     }
 
     // Wait for image to load if not loaded yet
     if (!img.complete || img.naturalWidth === 0) {
         console.log('Image not loaded yet, waiting...');
-        img.onload = () => scaleHighlightBox(origX, origY, origWidth, origHeight);
+        img.onload = () => cropAndZoomToSection(origX, origY, origWidth, origHeight);
         return;
     }
 
-    // Get the scale factor between original and displayed image
-    const scaleX = img.width / img.naturalWidth;
-    const scaleY = img.height / img.naturalHeight;
+    const ctx = canvas.getContext('2d');
 
-    // Make highlight 1.5x bigger (25% padding on each side to get 1.5x total size)
-    const paddingX = origWidth * 0.25;
-    const paddingY = origHeight * 0.25;
-    const paddedX = Math.max(0, origX - paddingX);
-    const paddedY = Math.max(0, origY - paddingY);
-    const paddedWidth = origWidth + (paddingX * 2);
-    const paddedHeight = origHeight + (paddingY * 2);
+    // Add 50% padding around the item for context
+    const paddingX = origWidth * 0.5;
+    const paddingY = origHeight * 0.5;
+    const cropX = Math.max(0, origX - paddingX);
+    const cropY = Math.max(0, origY - paddingY);
+    const cropWidth = Math.min(origWidth + (paddingX * 2), img.naturalWidth - cropX);
+    const cropHeight = Math.min(origHeight + (paddingY * 2), img.naturalHeight - cropY);
 
-    // Scale the padded coordinates
-    const scaledX = paddedX * scaleX;
-    const scaledY = paddedY * scaleY;
-    const scaledWidth = paddedWidth * scaleX;
-    const scaledHeight = paddedHeight * scaleY;
+    // Set canvas size to maintain aspect ratio, max 800px wide
+    const maxWidth = 800;
+    const scale = Math.min(maxWidth / cropWidth, 2); // Max 2x zoom
+    canvas.width = cropWidth * scale;
+    canvas.height = cropHeight * scale;
 
-    // Apply to the highlight box
-    box.style.left = scaledX + 'px';
-    box.style.top = scaledY + 'px';
-    box.style.width = scaledWidth + 'px';
-    box.style.height = scaledHeight + 'px';
-    box.style.display = 'block';
+    // Draw the cropped section enlarged
+    ctx.drawImage(
+        img,
+        cropX, cropY, cropWidth, cropHeight,  // Source crop area
+        0, 0, canvas.width, canvas.height      // Destination (full canvas)
+    );
 
-    console.log('✅ Highlight box applied:', {
+    // Draw green highlight overlay on the item area within the crop
+    const highlightX = (origX - cropX) * scale;
+    const highlightY = (origY - cropY) * scale;
+    const highlightW = origWidth * scale;
+    const highlightH = origHeight * scale;
+
+    ctx.fillStyle = 'rgba(76, 175, 80, 0.25)';
+    ctx.fillRect(highlightX, highlightY, highlightW, highlightH);
+
+    ctx.strokeStyle = 'rgba(76, 175, 80, 0.9)';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(highlightX, highlightY, highlightW, highlightH);
+
+    console.log('✅ Zoomed and cropped section:', {
         original: { x: origX, y: origY, w: origWidth, h: origHeight },
-        scaled: { x: scaledX, y: scaledY, w: scaledWidth, h: scaledHeight },
-        imageDimensions: { natural: img.naturalWidth + 'x' + img.naturalHeight, displayed: img.width + 'x' + img.height }
+        crop: { x: cropX, y: cropY, w: cropWidth, h: cropHeight },
+        canvas: { w: canvas.width, h: canvas.height },
+        zoom: scale.toFixed(2) + 'x'
     });
 }
 
