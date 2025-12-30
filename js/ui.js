@@ -209,16 +209,23 @@ async function viewCouponImage(couponId, itemNumber) {
 
             const imageUrl = 'https://raw.githubusercontent.com/ritesh2025-hub/adjustmentTracker/main/coupons/images/' + month + '/' + pageFilename;
 
-            // Always show with zoom controls (will use OCR to find item)
+            // Show with zoom controls
             content += '<div style="margin-top: 20px;">';
             // View toggle buttons
             content += '<div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">';
-            content += '<button onclick="showZoomedView()" class="btn btn-primary" id="zoom-btn">🔍 Zoomed View</button>';
+
+            if (coords && coords.width > 0) {
+                content += '<button onclick="useCoordinates()" class="btn btn-primary" id="coords-btn">📍 Use Coordinates (Fast)</button>';
+                content += '<button onclick="searchWithOCR()" class="btn btn-secondary" id="ocr-search-btn">🔍 Search with OCR (Slow)</button>';
+            } else {
+                content += '<button onclick="searchWithOCR()" class="btn btn-primary" id="ocr-search-btn">🔍 Search with OCR</button>';
+            }
+
             content += '<button onclick="showFullView()" class="btn btn-secondary" id="full-btn">📄 Full Page</button>';
             content += '<button onclick="toggleHighlight()" class="btn btn-cancel" id="highlight-toggle-btn">Hide Highlight</button>';
             content += '</div>';
             // Status message
-            content += '<p id="ocr-status" style="margin-bottom: 10px; color: #2196F3; font-size: 0.9rem;">🔍 Searching for item #' + itemNumber + ' on page...</p>';
+            content += '<p id="ocr-status" style="margin-bottom: 10px; color: #666; font-size: 0.9rem;"></p>';
             // Hidden full image for processing
             content += '<img src="' + imageUrl + '" style="display: none;" alt="Coupon page" id="coupon-image-full" crossorigin="anonymous">';
             // Canvas for zoomed section
@@ -227,8 +234,9 @@ async function viewCouponImage(couponId, itemNumber) {
             content += '<img src="' + imageUrl + '" id="full-page-view" style="max-width: 100%; border: 2px solid #ddd; border-radius: 8px; display: none;" alt="Coupon page">';
             content += '</div>';
 
-            // Store item number for OCR search
+            // Store item number and coordinates
             window.currentSearchItemNumber = itemNumber;
+            window.savedCoordinates = coords;
         } else if (coupon.imageData) {
             content += '<div style="margin-top: 20px;"><img src="' + coupon.imageData + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;" alt="Coupon image"></div>';
         } else if (coupon.imageUrl) {
@@ -251,14 +259,57 @@ async function viewCouponImage(couponId, itemNumber) {
 
     showModal(content);
 
-    // Use OCR to find item number on page
-    if (itemData && window.currentSearchItemNumber) {
-        window.highlightEnabled = true;
+    // Set up initial view
+    window.highlightEnabled = true;
 
-        setTimeout(() => {
-            searchItemWithOCR(window.currentSearchItemNumber);
-        }, 100);
+    // Auto-select best option
+    if (window.savedCoordinates && window.savedCoordinates.width > 0) {
+        // Use coordinates by default (instant)
+        setTimeout(useCoordinates, 100);
+    } else {
+        // Show full page by default if no coordinates
+        setTimeout(showFullView, 100);
     }
+}
+
+function useCoordinates() {
+    const coords = window.savedCoordinates;
+    if (!coords || !coords.width) {
+        document.getElementById('ocr-status').textContent = '❌ No coordinates available';
+        document.getElementById('ocr-status').style.color = '#f44336';
+        return;
+    }
+
+    document.getElementById('ocr-status').textContent = '📍 Using saved coordinates (instant)';
+    document.getElementById('ocr-status').style.color = '#4CAF50';
+
+    // Use the saved coordinates (much larger area - 6"x6" for context)
+    const boxSize = 700;
+    const centerX = coords.x + coords.width / 2;
+    const centerY = coords.y + coords.height / 2;
+
+    window.currentItemCoords = {
+        x: Math.max(0, centerX - boxSize / 2),
+        y: Math.max(0, centerY - boxSize / 2),
+        width: boxSize,
+        height: boxSize,
+        // Store original item location within crop
+        itemRelativeX: boxSize / 2,
+        itemRelativeY: boxSize / 2,
+        itemWidth: coords.width,
+        itemHeight: coords.height
+    };
+
+    showZoomedView();
+}
+
+function searchWithOCR() {
+    document.getElementById('ocr-status').textContent = '🔍 Starting OCR search (this may take 10-20 seconds)...';
+    document.getElementById('ocr-status').style.color = '#2196F3';
+
+    setTimeout(() => {
+        searchItemWithOCR(window.currentSearchItemNumber);
+    }, 100);
 }
 
 // Global variables for view state
@@ -288,51 +339,123 @@ async function searchItemWithOCR(itemNumber) {
         const worker = await Tesseract.createWorker();
         await worker.loadLanguage('eng');
         await worker.initialize('eng');
-        await worker.setParameters({
-            tessedit_char_whitelist: '0123456789',
+
+        // Run OCR with numbers-only mode
+        const { data } = await worker.recognize(img, {
+            tessedit_char_whitelist: '0123456789'
         });
 
-        // Run OCR on full image
-        const { data } = await worker.recognize(img);
+        console.log('OCR completed. Total words found:', data.words.length);
 
-        // Find the item number in OCR results
+        // Find the item number in OCR results with flexible matching
         let found = null;
+        let bestMatch = { score: 0, bbox: null, text: '' };
+
         for (const word of data.words) {
-            if (word.text.includes(itemNumber) || itemNumber.includes(word.text)) {
-                found = word.bbox;
-                break;
+            const cleanText = word.text.replace(/[^0-9]/g, '');
+
+            // Calculate similarity score
+            let score = 0;
+
+            // Exact match
+            if (cleanText === itemNumber) {
+                score = 100;
             }
+            // Contains the full item number
+            else if (cleanText.includes(itemNumber)) {
+                score = 90;
+            }
+            // Item number contains this (partial match)
+            else if (itemNumber.includes(cleanText) && cleanText.length >= 4) {
+                score = 80 * (cleanText.length / itemNumber.length);
+            }
+            // Fuzzy match - count matching digits in sequence
+            else {
+                let matches = 0;
+                let i = 0, j = 0;
+                while (i < itemNumber.length && j < cleanText.length) {
+                    if (itemNumber[i] === cleanText[j]) {
+                        matches++;
+                        i++;
+                        j++;
+                    } else {
+                        j++;
+                    }
+                }
+                if (matches >= 5) {
+                    score = 60 * (matches / itemNumber.length);
+                }
+            }
+
+            if (score > bestMatch.score) {
+                bestMatch = {
+                    score: score,
+                    bbox: word.bbox,
+                    text: cleanText,
+                    confidence: word.confidence
+                };
+            }
+
+            console.log('Word:', cleanText, 'Score:', score.toFixed(1), 'Confidence:', word.confidence.toFixed(1));
         }
 
         await worker.terminate();
 
-        if (found) {
-            // Found the item! Create a 2"x2" box around it (roughly 200x200 pixels at typical DPI)
-            const boxSize = 250; // 2-3 inches at typical screen DPI
-            const centerX = found.x0 + (found.x1 - found.x0) / 2;
-            const centerY = found.y0 + (found.y1 - found.y0) / 2;
+        // Accept match if score is above threshold
+        if (bestMatch.score >= 70) {
+            found = bestMatch.bbox;
+            console.log('✅ Best match found:', bestMatch);
+        }
 
-            window.currentItemCoords = {
-                x: Math.max(0, centerX - boxSize / 2),
-                y: Math.max(0, centerY - boxSize / 2),
-                width: boxSize,
-                height: boxSize
+        if (found) {
+            // Store all OCR data for debugging
+            window.ocrDebugData = {
+                allWords: data.words,
+                bestMatch: bestMatch
             };
 
-            statusEl.textContent = '✅ Found item #' + itemNumber + '!';
+            // Found the item! Create a much larger box for better context
+            const boxSize = 600; // ~6 inches for more context
+
+            // Use the bounding box directly (don't center, use actual position)
+            const itemX = found.x0;
+            const itemY = found.y0;
+            const itemWidth = found.x1 - found.x0;
+            const itemHeight = found.y1 - found.y0;
+
+            // Expand around the actual found position with more room
+            const expandX = boxSize;
+            const expandY = boxSize;
+
+            window.currentItemCoords = {
+                x: Math.max(0, itemX - expandX / 2),
+                y: Math.max(0, itemY - expandY / 2),
+                width: boxSize,
+                height: boxSize,
+                // Store original item location within crop
+                itemRelativeX: expandX / 2,
+                itemRelativeY: expandY / 2,
+                itemWidth: itemWidth,
+                itemHeight: itemHeight
+            };
+
+            statusEl.textContent = '✅ Found item #' + itemNumber + ' (match: ' + bestMatch.score.toFixed(0) + '%) at position (' + itemX + ', ' + itemY + ')';
             statusEl.style.color = '#4CAF50';
 
             console.log('✅ Found item via OCR:', {
                 itemNumber,
+                matchedText: bestMatch.text,
+                score: bestMatch.score,
                 bbox: found,
-                center: { x: centerX, y: centerY },
+                itemPosition: { x: itemX, y: itemY, w: itemWidth, h: itemHeight },
                 cropBox: window.currentItemCoords
             });
 
             showZoomedView();
         } else {
-            statusEl.textContent = '⚠️ Item #' + itemNumber + ' not found on page';
+            statusEl.textContent = '⚠️ Item #' + itemNumber + ' not found - showing full page (best match: ' + bestMatch.score.toFixed(0) + '%)';
             statusEl.style.color = '#ff9800';
+            console.warn('No good match found. Best:', bestMatch);
             showFullView();
         }
     } catch (error) {
@@ -348,8 +471,15 @@ function showZoomedView() {
 
     document.getElementById('zoomed-canvas').style.display = 'block';
     document.getElementById('full-page-view').style.display = 'none';
-    document.getElementById('zoom-btn').classList.add('active');
-    document.getElementById('full-btn').classList.remove('active');
+
+    // Update button states
+    const coordsBtn = document.getElementById('coords-btn');
+    const ocrBtn = document.getElementById('ocr-search-btn');
+    const fullBtn = document.getElementById('full-btn');
+
+    if (coordsBtn) coordsBtn.classList.add('active');
+    if (ocrBtn) ocrBtn.classList.remove('active');
+    if (fullBtn) fullBtn.classList.remove('active');
 
     const coords = window.currentItemCoords;
     cropAndZoomToSection(coords.x, coords.y, coords.width, coords.height, window.highlightEnabled);
@@ -358,8 +488,15 @@ function showZoomedView() {
 function showFullView() {
     document.getElementById('zoomed-canvas').style.display = 'none';
     document.getElementById('full-page-view').style.display = 'block';
-    document.getElementById('zoom-btn').classList.remove('active');
-    document.getElementById('full-btn').classList.add('active');
+
+    // Update button states
+    const coordsBtn = document.getElementById('coords-btn');
+    const ocrBtn = document.getElementById('ocr-search-btn');
+    const fullBtn = document.getElementById('full-btn');
+
+    if (coordsBtn) coordsBtn.classList.remove('active');
+    if (ocrBtn) ocrBtn.classList.remove('active');
+    if (fullBtn) fullBtn.classList.add('active');
 }
 
 function toggleHighlight() {
@@ -391,47 +528,63 @@ function cropAndZoomToSection(origX, origY, origWidth, origHeight, showHighlight
     }
 
     const ctx = canvas.getContext('2d');
+    const coords = window.currentItemCoords;
 
-    // Crop to the exact box (2"x2" around item number)
+    // Crop to the box
     const cropX = Math.max(0, origX);
     const cropY = Math.max(0, origY);
     const cropWidth = Math.min(origWidth, img.naturalWidth - cropX);
     const cropHeight = Math.min(origHeight, img.naturalHeight - cropY);
 
-    // Scale to reasonable viewing size (max 600px wide for 2"x2" section)
-    const maxWidth = 600;
+    // Scale to reasonable viewing size
+    const maxWidth = 700;
     const scale = maxWidth / cropWidth;
     canvas.width = cropWidth * scale;
     canvas.height = cropHeight * scale;
 
-    // Draw the cropped 2"x2" section
+    // Draw the cropped section
     ctx.drawImage(
         img,
-        cropX, cropY, cropWidth, cropHeight,  // Source crop area (exact 2"x2")
+        cropX, cropY, cropWidth, cropHeight,  // Source crop area
         0, 0, canvas.width, canvas.height      // Destination (scaled up)
     );
 
-    // Draw highlight if enabled - highlight the center where item number was found
-    if (showHighlight) {
-        const centerHighlightSize = Math.min(cropWidth, cropHeight) * 0.6; // Highlight center 60%
-        const highlightX = (cropWidth - centerHighlightSize) / 2 * scale;
-        const highlightY = (cropHeight - centerHighlightSize) / 2 * scale;
-        const highlightW = centerHighlightSize * scale;
-        const highlightH = centerHighlightSize * scale;
+    // Draw highlight if enabled - highlight where item number was actually found
+    if (showHighlight && coords && coords.itemRelativeX !== undefined) {
+        // Draw a box around the detected item number position
+        const highlightX = coords.itemRelativeX * scale;
+        const highlightY = coords.itemRelativeY * scale;
+        const highlightW = (coords.itemWidth || 100) * scale;
+        const highlightH = (coords.itemHeight || 30) * scale;
 
-        ctx.fillStyle = 'rgba(76, 175, 80, 0.2)';
-        ctx.fillRect(highlightX, highlightY, highlightW, highlightH);
+        // Expand highlight slightly for visibility
+        const padding = 20 * scale;
 
-        ctx.strokeStyle = 'rgba(76, 175, 80, 0.9)';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(highlightX, highlightY, highlightW, highlightH);
+        ctx.fillStyle = 'rgba(76, 175, 80, 0.25)';
+        ctx.fillRect(highlightX - padding, highlightY - padding, highlightW + padding*2, highlightH + padding*2);
+
+        ctx.strokeStyle = 'rgba(76, 175, 80, 1)';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(highlightX - padding, highlightY - padding, highlightW + padding*2, highlightH + padding*2);
+
+        // Draw a small crosshair at the exact detected position
+        ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+        ctx.lineWidth = 2;
+        const crossSize = 15 * scale;
+        ctx.beginPath();
+        ctx.moveTo(highlightX - crossSize, highlightY);
+        ctx.lineTo(highlightX + crossSize, highlightY);
+        ctx.moveTo(highlightX, highlightY - crossSize);
+        ctx.lineTo(highlightX, highlightY + crossSize);
+        ctx.stroke();
     }
 
-    console.log('✅ Zoomed view rendered (2"x2" section):', {
+    console.log('✅ Zoomed view rendered:', {
         crop: { x: cropX, y: cropY, w: cropWidth, h: cropHeight },
         canvas: { w: canvas.width, h: canvas.height },
         zoom: scale.toFixed(2) + 'x',
-        highlight: showHighlight
+        highlight: showHighlight,
+        itemPos: coords ? { rx: coords.itemRelativeX, ry: coords.itemRelativeY } : 'none'
     });
 }
 
