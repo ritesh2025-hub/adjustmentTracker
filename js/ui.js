@@ -214,8 +214,8 @@ async function viewCouponImage(couponId, itemNumber) {
                 // Use percentage-based positioning so it scales with the image
                 content += '<div style="margin-top: 20px; position: relative; display: inline-block; width: 100%;">';
                 content += '<img src="' + imageUrl + '" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px; display: block;" alt="Coupon page" onerror="this.parentElement.innerHTML=\'<p style=color:red>Image not yet uploaded to GitHub</p>\'" id="coupon-image-with-coords">';
-                // Highlight box overlay - transparent green overlay with glow
-                content += '<div id="highlight-box" style="position: absolute; background: rgba(76, 175, 80, 0.25); box-shadow: inset 0 0 0 3px rgba(76, 175, 80, 0.8), 0 0 30px rgba(76, 175, 80, 0.6); pointer-events: none; display: none; border-radius: 8px;"></div>';
+                // Highlight box overlay - transparent green overlay with outer glow only (no border)
+                content += '<div id="highlight-box" style="position: absolute; background: rgba(76, 175, 80, 0.3); box-shadow: 0 0 30px rgba(76, 175, 80, 0.7); pointer-events: none; display: none; border-radius: 8px;"></div>';
                 content += '</div>';
                 content += '<p style="margin-top: 10px; font-size: 0.9rem; color: #4CAF50;"><strong>✓ Item location highlighted in green</strong></p>';
             } else {
@@ -273,12 +273,13 @@ function scaleHighlightBox(origX, origY, origWidth, origHeight) {
     const scaleX = img.width / img.naturalWidth;
     const scaleY = img.height / img.naturalHeight;
 
-    // Add padding to make highlight bigger (10 pixels on each side in original dimensions)
-    const padding = 10;
-    const paddedX = Math.max(0, origX - padding);
-    const paddedY = Math.max(0, origY - padding);
-    const paddedWidth = origWidth + (padding * 2);
-    const paddedHeight = origHeight + (padding * 2);
+    // Make highlight 1.5x bigger (25% padding on each side to get 1.5x total size)
+    const paddingX = origWidth * 0.25;
+    const paddingY = origHeight * 0.25;
+    const paddedX = Math.max(0, origX - paddingX);
+    const paddedY = Math.max(0, origY - paddingY);
+    const paddedWidth = origWidth + (paddingX * 2);
+    const paddedHeight = origHeight + (paddingY * 2);
 
     // Scale the padded coordinates
     const scaledX = paddedX * scaleX;
